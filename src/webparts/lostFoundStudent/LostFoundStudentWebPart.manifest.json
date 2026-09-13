@@ -1,0 +1,29 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json",
+  "id": "02886640-83ca-4662-aef9-b0a8c6d548aa",
+  "alias": "LostFoundStudentWebPart",
+  "componentType": "WebPart",
+
+  // The "*" signifies that the version should be taken from the package.json
+  "version": "*",
+  "manifestVersion": 2,
+
+  // If true, the component can only be installed on sites where Custom Script is allowed.
+  // Components that allow authors to embed arbitrary script code should set this to true.
+  // https://support.office.com/en-us/article/Turn-scripting-capabilities-on-or-off-1f2c515f-5d7e-448a-9fd7-835da935584f
+  "requiresCustomScript": false,
+  "supportedHosts": ["SharePointWebPart", "SharePointFullPage"],
+  "supportsThemeVariants": true,
+
+  "preconfiguredEntries": [{
+    "groupId": "5c03119e-3074-46fd-976b-c60198311f70", // Advanced
+    "group": { "default": "Advanced" },
+    "title": { "default": "落とし物システム" },
+    "description": { "default": "QRなしの受付・検索・紛失届・返却申出・手動返却" },
+    "officeFabricIconFontName": "Page",
+    "properties": {
+      "dataSiteUrl": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+      "schoolEmailDomains": "stu.kobe-u.ac.jp"
+    }
+  }]
+}

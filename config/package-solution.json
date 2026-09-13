@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "lost-found-student-spfx-client-side-solution",
+    "id": "eab38116-6de8-4092-b2e9-ccc31badc91f",
+    "version": "2.9.1.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "神戸大学 落とし物システム検証プロジェクト",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.23.2"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "学生向けの拾得物検索・紛失届・返却申出"
+      },
+      "longDescription": {
+        "default": "職員はPower Appsで操作し、学生はSPFxで検索・紛失届・返却申出・受取履歴を利用する。"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "落とし物システム Webパーツ",
+        "description": "学生向けの検索・紛失届・返却申出を有効化する。",
+        "id": "d964ccc5-6671-424a-8c44-2b594dc8cd05",
+        "version": "2.9.1.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/lost-found-student-spfx.sppkg"
+  }
+}

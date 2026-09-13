@@ -1,0 +1,20 @@
+{
+  "siteUrl": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+  "foundItemsList": "FoundItems",
+  "listIds": {
+    "FoundItems": "617870b8-de06-454f-8267-993453389662",
+    "LFClaims": "d08a0352-5ab6-4c4c-80c5-ce864cf2b598",
+    "LFMailOutbox": "e19d894a-0e2a-4824-86a0-df706892ed90",
+    "LFNotices": "9c910cf5-0120-4d66-9c0a-ba5b54d1b131",
+    "LFPublicItems": "fa509aa9-3de4-4aa5-b31d-d74d8ccdb14f",
+    "LFPublicThanks": "fb535b33-0d22-45a1-8a37-9fcb56aecd7d",
+    "LFRequests": "514d2cfc-b1bb-4b10-b3c1-423af23e327e",
+    "LFThanks": "df81e7cb-0a6c-4672-88e0-6ff1bfe51620"
+  },
+  "staffPrincipalIds": [],
+  "studentPrincipalIds": [],
+  "schoolEmailDomains": ["stu.kobe-u.ac.jp"],
+  "grantNoticePermissions": false,
+  "appUrl": "",
+  "connectionReferences": {}
+}

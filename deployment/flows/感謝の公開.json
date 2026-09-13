@@ -1,0 +1,407 @@
+{
+  "properties": {
+    "displayName": "落とし物 QRなし 感謝の公開",
+    "connectionReferences": {},
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        }
+      },
+      "triggers": {
+        "tick": {
+          "type": "Recurrence",
+          "recurrence": {
+            "frequency": "Minute",
+            "interval": 1
+          },
+          "runtimeConfiguration": {
+            "concurrency": {
+              "runs": 1
+            }
+          }
+        }
+      },
+      "actions": {
+        "Submissions": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetItems"
+            },
+            "parameters": {
+              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+              "table": "df81e7cb-0a6c-4672-88e0-6ff1bfe51620"
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runtimeConfiguration": {
+            "paginationPolicy": {
+              "minimumItemCount": 100000
+            }
+          },
+          "runAfter": {}
+        },
+        "Receipts": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetItems"
+            },
+            "parameters": {
+              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+              "table": "9c910cf5-0120-4d66-9c0a-ba5b54d1b131",
+              "$filter": "NoticeKind eq 'RETURN'"
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runtimeConfiguration": {
+            "paginationPolicy": {
+              "minimumItemCount": 100000
+            }
+          },
+          "runAfter": {
+            "Submissions": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Published": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetItems"
+            },
+            "parameters": {
+              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+              "table": "fb535b33-0d22-45a1-8a37-9fcb56aecd7d"
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runtimeConfiguration": {
+            "paginationPolicy": {
+              "minimumItemCount": 100000
+            }
+          },
+          "runAfter": {
+            "Receipts": [
+              "Succeeded"
+            ]
+          }
+        },
+        "EachThanks": {
+          "type": "Foreach",
+          "foreach": "@body('Submissions')?['value']",
+          "actions": {
+            "SubmissionRow": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "HttpRequest"
+                },
+                "parameters": {
+                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                  "parameters/method": "GET",
+                  "parameters/uri": "_api/web/lists/getbytitle('LFThanks')/items(@{items('EachThanks')?['ID']})",
+                  "parameters/headers": {
+                    "Accept": "application/json;odata=minimalmetadata",
+                    "Content-Type": "application/json;odata=nometadata"
+                  }
+                },
+                "authentication": "@parameters('$authentication')"
+              },
+              "runAfter": {}
+            },
+            "ValidReceipt": {
+              "type": "Query",
+              "inputs": {
+                "from": "@body('Receipts')?['value']",
+                "where": "@and(equals(item()?['NoticeKind'],'RETURN'),equals(item()?['ClaimId'],body('SubmissionRow')?['ClaimId']),equals(string(item()?['RecipientUserId']),string(body('SubmissionRow')?['AuthorId'])))"
+              },
+              "runAfter": {
+                "SubmissionRow": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "ExistingThanks": {
+              "type": "Query",
+              "inputs": {
+                "from": "@body('Published')?['value']",
+                "where": "@equals(item()?['Title'],concat('publicThanks:',string(items('EachThanks')?['ID'])))"
+              },
+              "runAfter": {
+                "ValidReceipt": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "HasReceipt": {
+              "type": "If",
+              "expression": "@greater(length(body('ValidReceipt')),0)",
+              "actions": {
+                "ReturnedItem": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "GET",
+                      "parameters/uri": "_api/web/lists/getbytitle('FoundItems')/items(@{first(body('ValidReceipt'))?['ItemId']})",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata"
+                      }
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {}
+                },
+                "StillReturned": {
+                  "type": "If",
+                  "expression": "@and(equals(body('ReturnedItem')?['Status'],'返却済み'),equals(ticks(coalesce(body('ReturnedItem')?['ReturnedAt'],'1900-01-01T00:00:00Z')),ticks(first(body('ValidReceipt'))?['NoticeCreatedAt'])))",
+                  "actions": {
+                    "NotPublished": {
+                      "type": "If",
+                      "expression": "@equals(length(body('ExistingThanks')),0)",
+                      "actions": {
+                        "CreateThanks_Body": {
+                          "type": "Compose",
+                          "inputs": {
+                            "Title": "publicThanks:@{items('EachThanks')?['ID']}",
+                            "SourceThanksId": "@string(items('EachThanks')?['ID'])",
+                            "Message": "@take(body('SubmissionRow')?['Message'],200)",
+                            "SubmittedAt": "@items('EachThanks')?['Created']"
+                          },
+                          "runAfter": {}
+                        },
+                        "CreateThanks": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "POST",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFPublicThanks')/items",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              },
+                              "parameters/body": "@string(outputs('CreateThanks_Body'))"
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "CreateThanks_Body": [
+                              "Succeeded"
+                            ]
+                          }
+                        }
+                      },
+                      "else": {
+                        "actions": {}
+                      },
+                      "runAfter": {}
+                    }
+                  },
+                  "else": {
+                    "actions": {
+                      "RemoveThanksChanged": {
+                        "type": "Foreach",
+                        "foreach": "@body('ExistingThanks')",
+                        "actions": {
+                          "CurrentPublicThanksChanged": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "GET",
+                                "parameters/uri": "_api/web/lists/getbytitle('LFPublicThanks')/items(@{items('RemoveThanksChanged')?['ID']})",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata"
+                                }
+                              },
+                              "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {}
+                          },
+                          "DeleteThanksChanged_Body": {
+                            "type": "Compose",
+                            "inputs": {},
+                            "runAfter": {
+                              "CurrentPublicThanksChanged": [
+                                "Succeeded"
+                              ]
+                            }
+                          },
+                          "DeleteThanksChanged": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "POST",
+                                "parameters/uri": "_api/web/lists/getbytitle('LFPublicThanks')/items(@{items('RemoveThanksChanged')?['ID']})",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata",
+                                  "X-HTTP-Method": "DELETE",
+                                  "IF-MATCH": "@body('CurrentPublicThanksChanged')?['odata.etag']"
+                                },
+                                "parameters/body": "@string(outputs('DeleteThanksChanged_Body'))"
+                              },
+                              "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {
+                              "DeleteThanksChanged_Body": [
+                                "Succeeded"
+                              ]
+                            }
+                          }
+                        },
+                        "runtimeConfiguration": {
+                          "concurrency": {
+                            "repetitions": 1
+                          }
+                        },
+                        "runAfter": {}
+                      }
+                    }
+                  },
+                  "runAfter": {
+                    "ReturnedItem": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "actions": {
+                  "RemoveThanksMissing": {
+                    "type": "Foreach",
+                    "foreach": "@body('ExistingThanks')",
+                    "actions": {
+                      "CurrentPublicThanksMissing": {
+                        "type": "OpenApiConnection",
+                        "inputs": {
+                          "host": {
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                            "connectionName": "shared_sharepointonline",
+                            "operationId": "HttpRequest"
+                          },
+                          "parameters": {
+                            "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                            "parameters/method": "GET",
+                            "parameters/uri": "_api/web/lists/getbytitle('LFPublicThanks')/items(@{items('RemoveThanksMissing')?['ID']})",
+                            "parameters/headers": {
+                              "Accept": "application/json;odata=minimalmetadata",
+                              "Content-Type": "application/json;odata=nometadata"
+                            }
+                          },
+                          "authentication": "@parameters('$authentication')"
+                        },
+                        "runAfter": {}
+                      },
+                      "DeleteThanksMissing_Body": {
+                        "type": "Compose",
+                        "inputs": {},
+                        "runAfter": {
+                          "CurrentPublicThanksMissing": [
+                            "Succeeded"
+                          ]
+                        }
+                      },
+                      "DeleteThanksMissing": {
+                        "type": "OpenApiConnection",
+                        "inputs": {
+                          "host": {
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                            "connectionName": "shared_sharepointonline",
+                            "operationId": "HttpRequest"
+                          },
+                          "parameters": {
+                            "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                            "parameters/method": "POST",
+                            "parameters/uri": "_api/web/lists/getbytitle('LFPublicThanks')/items(@{items('RemoveThanksMissing')?['ID']})",
+                            "parameters/headers": {
+                              "Accept": "application/json;odata=minimalmetadata",
+                              "Content-Type": "application/json;odata=nometadata",
+                              "X-HTTP-Method": "DELETE",
+                              "IF-MATCH": "@body('CurrentPublicThanksMissing')?['odata.etag']"
+                            },
+                            "parameters/body": "@string(outputs('DeleteThanksMissing_Body'))"
+                          },
+                          "authentication": "@parameters('$authentication')"
+                        },
+                        "runAfter": {
+                          "DeleteThanksMissing_Body": [
+                            "Succeeded"
+                          ]
+                        }
+                      }
+                    },
+                    "runtimeConfiguration": {
+                      "concurrency": {
+                        "repetitions": 1
+                      }
+                    },
+                    "runAfter": {}
+                  }
+                }
+              },
+              "runAfter": {
+                "ExistingThanks": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "runtimeConfiguration": {
+            "concurrency": {
+              "repetitions": 1
+            }
+          },
+          "runAfter": {
+            "Published": [
+              "Succeeded"
+            ]
+          }
+        }
+      },
+      "outputs": {}
+    }
+  }
+}

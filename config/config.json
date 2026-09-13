@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "lost-found-student-web-part": {
+      "components": [
+        {
+          "entrypoint": "./lib/webparts/lostFoundStudent/LostFoundStudentWebPart.js",
+          "manifest": "./src/webparts/lostFoundStudent/LostFoundStudentWebPart.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "LostFoundStudentWebPartStrings": "lib/webparts/lostFoundStudent/loc/{locale}.js"
+  }
+}

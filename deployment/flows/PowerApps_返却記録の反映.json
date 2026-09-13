@@ -1,0 +1,1473 @@
+{
+  "properties": {
+    "displayName": "落とし物 QRなし PowerApps_返却記録の反映",
+    "connectionReferences": {},
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        }
+      },
+      "triggers": {
+        "changed": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetOnUpdatedItems"
+            },
+            "parameters": {
+              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+              "table": "617870b8-de06-454f-8267-993453389662"
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "recurrence": {
+            "frequency": "Minute",
+            "interval": 1
+          },
+          "splitOn": "@triggerOutputs()?['body/value']",
+          "runtimeConfiguration": {
+            "concurrency": {
+              "runs": 1
+            }
+          }
+        }
+      },
+      "actions": {
+        "Item": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "HttpRequest"
+            },
+            "parameters": {
+              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+              "parameters/method": "GET",
+              "parameters/uri": "_api/web/lists/getbytitle('FoundItems')/items(@{triggerBody()?['ID']})",
+              "parameters/headers": {
+                "Accept": "application/json;odata=minimalmetadata",
+                "Content-Type": "application/json;odata=nometadata"
+              }
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runAfter": {}
+        },
+        "Returned": {
+          "type": "If",
+          "expression": "@and(equals(body('Item')?['Status'],'返却済み'),not(empty(body('Item')?['ReturnRecipientEmail'])))",
+          "actions": {
+            "HasClaim": {
+              "type": "If",
+              "expression": "@not(empty(body('Item')?['ClaimId']))",
+              "actions": {
+                "Claim": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "GET",
+                      "parameters/uri": "_api/web/lists/getbytitle('LFClaims')/items(@{int(body('Item')?['ClaimId'])})?$select=*,Author/EMail&$expand=Author",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata"
+                      }
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {}
+                },
+                "ValidClaim": {
+                  "type": "If",
+                  "expression": "@and(equals(body('Claim')?['ItemId'],string(body('Item')?['Id'])),equals(body('Claim')?['ClaimStatus'],'PENDING'),equals(toLower(body('Claim')?['Author']?['EMail']),toLower(body('Item')?['ReturnRecipientEmail'])))",
+                  "actions": {
+                    "ClaimReceiptValue": {
+                      "type": "Compose",
+                      "inputs": {
+                        "itemId": "@string(body('Item')?['Id'])",
+                        "window": "@coalesce(body('Item')?['StorageWindow'],'')",
+                        "key": "@concat('RETURN:',string(body('Item')?['Id']),':',string(body('Claim')?['AuthorId']),':',coalesce(body('Item')?['RequestId'],''),':',string(body('Claim')?['Id']),':',body('Item')?['ReturnedAt'])",
+                        "owner": "@string(body('Claim')?['AuthorId'])",
+                        "email": "@toLower(body('Claim')?['Author']?['EMail'])",
+                        "requestId": "@coalesce(body('Item')?['RequestId'],'')",
+                        "claimId": "@string(body('Claim')?['Id'])",
+                        "kind": "RETURN",
+                        "title": "返却が完了しました",
+                        "message": "お受け取りありがとうございました。任意で感謝の一言を残せます。",
+                        "createdAt": "@body('Item')?['ReturnedAt']"
+                      },
+                      "runAfter": {}
+                    },
+                    "ClaimReceiptExisting": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "GET",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items?$filter=Title eq '@{outputs('ClaimReceiptValue')?['key']}'&$top=1",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata"
+                          }
+                        },
+                        "authentication": "@parameters('$authentication')"
+                      },
+                      "runAfter": {
+                        "ClaimReceiptValue": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "ClaimReceiptMissing": {
+                      "type": "If",
+                      "expression": "@empty(body('ClaimReceiptExisting')?['value'])",
+                      "actions": {
+                        "ClaimReceiptCreate_Body": {
+                          "type": "Compose",
+                          "inputs": {
+                            "Title": "@outputs('ClaimReceiptValue')?['key']",
+                            "NotificationKey": "@outputs('ClaimReceiptValue')?['key']",
+                            "RecipientUserId": "@if(empty(outputs('ClaimReceiptValue')?['owner']),null,int(outputs('ClaimReceiptValue')?['owner']))",
+                            "RecipientEmail": "@outputs('ClaimReceiptValue')?['email']",
+                            "ItemId": "@outputs('ClaimReceiptValue')?['itemId']",
+                            "RequestId": "@outputs('ClaimReceiptValue')?['requestId']",
+                            "ClaimId": "@outputs('ClaimReceiptValue')?['claimId']",
+                            "NoticeKind": "@outputs('ClaimReceiptValue')?['kind']",
+                            "ItemTitle": "@outputs('ClaimReceiptValue')?['title']",
+                            "StorageWindow": "@outputs('ClaimReceiptValue')?['window']",
+                            "Message": "@outputs('ClaimReceiptValue')?['message']",
+                            "NoticeCreatedAt": "@outputs('ClaimReceiptValue')?['createdAt']"
+                          },
+                          "runAfter": {}
+                        },
+                        "ClaimReceiptCreate": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "POST",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              },
+                              "parameters/body": "@string(outputs('ClaimReceiptCreate_Body'))"
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "ClaimReceiptCreate_Body": [
+                              "Succeeded"
+                            ]
+                          }
+                        }
+                      },
+                      "else": {
+                        "actions": {}
+                      },
+                      "runAfter": {
+                        "ClaimReceiptExisting": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "ClaimReceiptRows": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "GET",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items?$filter=Title eq '@{outputs('ClaimReceiptValue')?['key']}'&$top=1",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata"
+                          }
+                        },
+                        "authentication": "@parameters('$authentication')"
+                      },
+                      "runAfter": {
+                        "ClaimReceiptMissing": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "ClaimReceiptOwner": {
+                      "type": "If",
+                      "expression": "@not(empty(outputs('ClaimReceiptValue')?['owner']))",
+                      "actions": {
+                        "ClaimReceiptBreak_Body": {
+                          "type": "Compose",
+                          "inputs": {},
+                          "runAfter": {}
+                        },
+                        "ClaimReceiptBreak": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "POST",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{first(body('ClaimReceiptRows')?['value'])?['Id']})/breakroleinheritance(copyRoleAssignments=true,clearSubscopes=false)",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              },
+                              "parameters/body": "@string(outputs('ClaimReceiptBreak_Body'))"
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "ClaimReceiptBreak_Body": [
+                              "Succeeded"
+                            ]
+                          }
+                        },
+                        "ClaimReceiptGrant_Body": {
+                          "type": "Compose",
+                          "inputs": {},
+                          "runAfter": {
+                            "ClaimReceiptBreak": [
+                              "Succeeded"
+                            ]
+                          }
+                        },
+                        "ClaimReceiptGrant": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "POST",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{first(body('ClaimReceiptRows')?['value'])?['Id']})/roleassignments/addroleassignment(principalid=@{outputs('ClaimReceiptValue')?['owner']},roledefid=1073741826)",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              },
+                              "parameters/body": "@string(outputs('ClaimReceiptGrant_Body'))"
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "ClaimReceiptGrant_Body": [
+                              "Succeeded"
+                            ]
+                          }
+                        }
+                      },
+                      "else": {
+                        "actions": {}
+                      },
+                      "runAfter": {
+                        "ClaimReceiptRows": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "ClaimReceiptMailRows": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "GET",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items?$filter=Title eq '@{outputs('ClaimReceiptValue')?['key']}'&$top=1",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata"
+                          }
+                        },
+                        "authentication": "@parameters('$authentication')"
+                      },
+                      "runAfter": {
+                        "ClaimReceiptOwner": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "ClaimReceiptQueue": {
+                      "type": "If",
+                      "expression": "@and(not(empty(outputs('ClaimReceiptValue')?['email'])),empty(body('ClaimReceiptMailRows')?['value']))",
+                      "actions": {
+                        "ClaimReceiptMail_Body": {
+                          "type": "Compose",
+                          "inputs": {
+                            "Title": "@outputs('ClaimReceiptValue')?['key']",
+                            "NotificationKey": "@outputs('ClaimReceiptValue')?['key']",
+                            "RecipientEmail": "@outputs('ClaimReceiptValue')?['email']",
+                            "MailSubject": "@outputs('ClaimReceiptValue')?['title']",
+                            "MailBody": "@concat(outputs('ClaimReceiptValue')?['message'],decodeUriComponent('%0A'),'受取窓口：',outputs('ClaimReceiptValue')?['window'],decodeUriComponent('%0A'),'https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2','?lfNotice=',string(first(body('ClaimReceiptRows')?['value'])?['Id']))",
+                            "MailStatus": "PENDING",
+                            "ErrorMessage": ""
+                          },
+                          "runAfter": {}
+                        },
+                        "ClaimReceiptMail": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "POST",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              },
+                              "parameters/body": "@string(outputs('ClaimReceiptMail_Body'))"
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "ClaimReceiptMail_Body": [
+                              "Succeeded"
+                            ]
+                          }
+                        }
+                      },
+                      "else": {
+                        "actions": {}
+                      },
+                      "runAfter": {
+                        "ClaimReceiptMailRows": [
+                          "Succeeded"
+                        ]
+                      }
+                    }
+                  },
+                  "else": {
+                    "actions": {}
+                  },
+                  "runAfter": {
+                    "Claim": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "actions": {
+                  "Recipient": {
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                      "host": {
+                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                        "connectionName": "shared_sharepointonline",
+                        "operationId": "HttpRequest"
+                      },
+                      "parameters": {
+                        "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                        "parameters/method": "GET",
+                        "parameters/uri": "_api/web/siteusers?$filter=Email eq '@{toLower(body('Item')?['ReturnRecipientEmail'])}'&$top=1",
+                        "parameters/headers": {
+                          "Accept": "application/json;odata=minimalmetadata",
+                          "Content-Type": "application/json;odata=nometadata"
+                        }
+                      },
+                      "authentication": "@parameters('$authentication')"
+                    },
+                    "runAfter": {}
+                  },
+                  "KnownStudent": {
+                    "type": "If",
+                    "expression": "@not(empty(body('Recipient')?['value']))",
+                    "actions": {
+                      "WalkinReceiptValue": {
+                        "type": "Compose",
+                        "inputs": {
+                          "itemId": "@string(body('Item')?['Id'])",
+                          "window": "@coalesce(body('Item')?['StorageWindow'],'')",
+                          "key": "@concat('RETURN:',string(body('Item')?['Id']),':',string(first(body('Recipient')?['value'])?['Id']),':',coalesce(body('Item')?['RequestId'],''),':',concat('walkin-',string(body('Item')?['Id']),'-',body('Item')?['ReturnedAt']),':',body('Item')?['ReturnedAt'])",
+                          "owner": "@string(first(body('Recipient')?['value'])?['Id'])",
+                          "email": "@toLower(body('Item')?['ReturnRecipientEmail'])",
+                          "requestId": "@coalesce(body('Item')?['RequestId'],'')",
+                          "claimId": "@concat('walkin-',string(body('Item')?['Id']),'-',body('Item')?['ReturnedAt'])",
+                          "kind": "RETURN",
+                          "title": "返却が完了しました",
+                          "message": "お受け取りありがとうございました。任意で感謝の一言を残せます。",
+                          "createdAt": "@body('Item')?['ReturnedAt']"
+                        },
+                        "runAfter": {}
+                      },
+                      "WalkinReceiptExisting": {
+                        "type": "OpenApiConnection",
+                        "inputs": {
+                          "host": {
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                            "connectionName": "shared_sharepointonline",
+                            "operationId": "HttpRequest"
+                          },
+                          "parameters": {
+                            "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                            "parameters/method": "GET",
+                            "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items?$filter=Title eq '@{outputs('WalkinReceiptValue')?['key']}'&$top=1",
+                            "parameters/headers": {
+                              "Accept": "application/json;odata=minimalmetadata",
+                              "Content-Type": "application/json;odata=nometadata"
+                            }
+                          },
+                          "authentication": "@parameters('$authentication')"
+                        },
+                        "runAfter": {
+                          "WalkinReceiptValue": [
+                            "Succeeded"
+                          ]
+                        }
+                      },
+                      "WalkinReceiptMissing": {
+                        "type": "If",
+                        "expression": "@empty(body('WalkinReceiptExisting')?['value'])",
+                        "actions": {
+                          "WalkinReceiptCreate_Body": {
+                            "type": "Compose",
+                            "inputs": {
+                              "Title": "@outputs('WalkinReceiptValue')?['key']",
+                              "NotificationKey": "@outputs('WalkinReceiptValue')?['key']",
+                              "RecipientUserId": "@if(empty(outputs('WalkinReceiptValue')?['owner']),null,int(outputs('WalkinReceiptValue')?['owner']))",
+                              "RecipientEmail": "@outputs('WalkinReceiptValue')?['email']",
+                              "ItemId": "@outputs('WalkinReceiptValue')?['itemId']",
+                              "RequestId": "@outputs('WalkinReceiptValue')?['requestId']",
+                              "ClaimId": "@outputs('WalkinReceiptValue')?['claimId']",
+                              "NoticeKind": "@outputs('WalkinReceiptValue')?['kind']",
+                              "ItemTitle": "@outputs('WalkinReceiptValue')?['title']",
+                              "StorageWindow": "@outputs('WalkinReceiptValue')?['window']",
+                              "Message": "@outputs('WalkinReceiptValue')?['message']",
+                              "NoticeCreatedAt": "@outputs('WalkinReceiptValue')?['createdAt']"
+                            },
+                            "runAfter": {}
+                          },
+                          "WalkinReceiptCreate": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "POST",
+                                "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata"
+                                },
+                                "parameters/body": "@string(outputs('WalkinReceiptCreate_Body'))"
+                              },
+                              "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {
+                              "WalkinReceiptCreate_Body": [
+                                "Succeeded"
+                              ]
+                            }
+                          }
+                        },
+                        "else": {
+                          "actions": {}
+                        },
+                        "runAfter": {
+                          "WalkinReceiptExisting": [
+                            "Succeeded"
+                          ]
+                        }
+                      },
+                      "WalkinReceiptRows": {
+                        "type": "OpenApiConnection",
+                        "inputs": {
+                          "host": {
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                            "connectionName": "shared_sharepointonline",
+                            "operationId": "HttpRequest"
+                          },
+                          "parameters": {
+                            "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                            "parameters/method": "GET",
+                            "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items?$filter=Title eq '@{outputs('WalkinReceiptValue')?['key']}'&$top=1",
+                            "parameters/headers": {
+                              "Accept": "application/json;odata=minimalmetadata",
+                              "Content-Type": "application/json;odata=nometadata"
+                            }
+                          },
+                          "authentication": "@parameters('$authentication')"
+                        },
+                        "runAfter": {
+                          "WalkinReceiptMissing": [
+                            "Succeeded"
+                          ]
+                        }
+                      },
+                      "WalkinReceiptOwner": {
+                        "type": "If",
+                        "expression": "@not(empty(outputs('WalkinReceiptValue')?['owner']))",
+                        "actions": {
+                          "WalkinReceiptBreak_Body": {
+                            "type": "Compose",
+                            "inputs": {},
+                            "runAfter": {}
+                          },
+                          "WalkinReceiptBreak": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "POST",
+                                "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{first(body('WalkinReceiptRows')?['value'])?['Id']})/breakroleinheritance(copyRoleAssignments=true,clearSubscopes=false)",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata"
+                                },
+                                "parameters/body": "@string(outputs('WalkinReceiptBreak_Body'))"
+                              },
+                              "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {
+                              "WalkinReceiptBreak_Body": [
+                                "Succeeded"
+                              ]
+                            }
+                          },
+                          "WalkinReceiptGrant_Body": {
+                            "type": "Compose",
+                            "inputs": {},
+                            "runAfter": {
+                              "WalkinReceiptBreak": [
+                                "Succeeded"
+                              ]
+                            }
+                          },
+                          "WalkinReceiptGrant": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "POST",
+                                "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{first(body('WalkinReceiptRows')?['value'])?['Id']})/roleassignments/addroleassignment(principalid=@{outputs('WalkinReceiptValue')?['owner']},roledefid=1073741826)",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata"
+                                },
+                                "parameters/body": "@string(outputs('WalkinReceiptGrant_Body'))"
+                              },
+                              "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {
+                              "WalkinReceiptGrant_Body": [
+                                "Succeeded"
+                              ]
+                            }
+                          }
+                        },
+                        "else": {
+                          "actions": {}
+                        },
+                        "runAfter": {
+                          "WalkinReceiptRows": [
+                            "Succeeded"
+                          ]
+                        }
+                      },
+                      "WalkinReceiptMailRows": {
+                        "type": "OpenApiConnection",
+                        "inputs": {
+                          "host": {
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                            "connectionName": "shared_sharepointonline",
+                            "operationId": "HttpRequest"
+                          },
+                          "parameters": {
+                            "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                            "parameters/method": "GET",
+                            "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items?$filter=Title eq '@{outputs('WalkinReceiptValue')?['key']}'&$top=1",
+                            "parameters/headers": {
+                              "Accept": "application/json;odata=minimalmetadata",
+                              "Content-Type": "application/json;odata=nometadata"
+                            }
+                          },
+                          "authentication": "@parameters('$authentication')"
+                        },
+                        "runAfter": {
+                          "WalkinReceiptOwner": [
+                            "Succeeded"
+                          ]
+                        }
+                      },
+                      "WalkinReceiptQueue": {
+                        "type": "If",
+                        "expression": "@and(not(empty(outputs('WalkinReceiptValue')?['email'])),empty(body('WalkinReceiptMailRows')?['value']))",
+                        "actions": {
+                          "WalkinReceiptMail_Body": {
+                            "type": "Compose",
+                            "inputs": {
+                              "Title": "@outputs('WalkinReceiptValue')?['key']",
+                              "NotificationKey": "@outputs('WalkinReceiptValue')?['key']",
+                              "RecipientEmail": "@outputs('WalkinReceiptValue')?['email']",
+                              "MailSubject": "@outputs('WalkinReceiptValue')?['title']",
+                              "MailBody": "@concat(outputs('WalkinReceiptValue')?['message'],decodeUriComponent('%0A'),'受取窓口：',outputs('WalkinReceiptValue')?['window'],decodeUriComponent('%0A'),'https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2','?lfNotice=',string(first(body('WalkinReceiptRows')?['value'])?['Id']))",
+                              "MailStatus": "PENDING",
+                              "ErrorMessage": ""
+                            },
+                            "runAfter": {}
+                          },
+                          "WalkinReceiptMail": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "POST",
+                                "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata"
+                                },
+                                "parameters/body": "@string(outputs('WalkinReceiptMail_Body'))"
+                              },
+                              "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {
+                              "WalkinReceiptMail_Body": [
+                                "Succeeded"
+                              ]
+                            }
+                          }
+                        },
+                        "else": {
+                          "actions": {}
+                        },
+                        "runAfter": {
+                          "WalkinReceiptMailRows": [
+                            "Succeeded"
+                          ]
+                        }
+                      }
+                    },
+                    "else": {
+                      "actions": {}
+                    },
+                    "runAfter": {
+                      "Recipient": [
+                        "Succeeded"
+                      ]
+                    }
+                  }
+                }
+              },
+              "runAfter": {}
+            },
+            "HasRequest": {
+              "type": "If",
+              "expression": "@not(empty(body('Item')?['RequestId']))",
+              "actions": {
+                "LostRequest": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "GET",
+                      "parameters/uri": "_api/web/lists/getbytitle('LFRequests')/items(@{int(body('Item')?['RequestId'])})?$select=*,Author/EMail&$expand=Author",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata"
+                      }
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {}
+                },
+                "Active": {
+                  "type": "If",
+                  "expression": "@and(equals(body('LostRequest')?['RequestStatus'],'ACTIVE'),equals(toLower(body('LostRequest')?['Author']?['EMail']),toLower(body('Item')?['ReturnRecipientEmail'])))",
+                  "actions": {
+                    "ResolveRequest_Body": {
+                      "type": "Compose",
+                      "inputs": {
+                        "RequestStatus": "RESOLVED"
+                      },
+                      "runAfter": {}
+                    },
+                    "ResolveRequest": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "POST",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFRequests')/items(@{body('LostRequest')?['Id']})",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata",
+                            "X-HTTP-Method": "MERGE",
+                            "IF-MATCH": "@body('LostRequest')?['odata.etag']"
+                          },
+                          "parameters/body": "@string(outputs('ResolveRequest_Body'))"
+                        },
+                        "authentication": "@parameters('$authentication')"
+                      },
+                      "runAfter": {
+                        "ResolveRequest_Body": [
+                          "Succeeded"
+                        ]
+                      }
+                    }
+                  },
+                  "else": {
+                    "actions": {}
+                  },
+                  "runAfter": {
+                    "LostRequest": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "actions": {}
+              },
+              "runAfter": {
+                "HasClaim": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "HasFinder": {
+              "type": "If",
+              "expression": "@and(not(empty(body('Item')?['FinderEmail'])),and(contains(createArray('stu.kobe-u.ac.jp'),last(split(toLower(coalesce(body('Item')?['FinderEmail'],'')),'@'))),or(contains(first(split(coalesce(body('Item')?['FinderEmail'],''),'@')),'0'),contains(first(split(coalesce(body('Item')?['FinderEmail'],''),'@')),'1'),contains(first(split(coalesce(body('Item')?['FinderEmail'],''),'@')),'2'),contains(first(split(coalesce(body('Item')?['FinderEmail'],''),'@')),'3'),contains(first(split(coalesce(body('Item')?['FinderEmail'],''),'@')),'4'),contains(first(split(coalesce(body('Item')?['FinderEmail'],''),'@')),'5'),contains(first(split(coalesce(body('Item')?['FinderEmail'],''),'@')),'6'),contains(first(split(coalesce(body('Item')?['FinderEmail'],''),'@')),'7'),contains(first(split(coalesce(body('Item')?['FinderEmail'],''),'@')),'8'),contains(first(split(coalesce(body('Item')?['FinderEmail'],''),'@')),'9'))))",
+              "actions": {
+                "Finder": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "GET",
+                      "parameters/uri": "_api/web/siteusers?$filter=Email eq '@{toLower(body('Item')?['FinderEmail'])}'&$top=1",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata"
+                      }
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {}
+                },
+                "FinderNotification": {
+                  "type": "Scope",
+                  "actions": {
+                    "FinderReceiptValue": {
+                      "type": "Compose",
+                      "inputs": {
+                        "itemId": "@string(body('Item')?['Id'])",
+                        "window": "@coalesce(body('Item')?['StorageWindow'],'')",
+                        "key": "@concat('FINDER:',string(body('Item')?['Id']),':',if(empty(body('Finder')?['value']),'',string(first(body('Finder')?['value'])?['Id'])),':::',body('Item')?['ReturnedAt'])",
+                        "owner": "@if(empty(body('Finder')?['value']),'',string(first(body('Finder')?['value'])?['Id']))",
+                        "email": "@toLower(body('Item')?['FinderEmail'])",
+                        "requestId": "",
+                        "claimId": "",
+                        "kind": "FINDER",
+                        "title": "届けていただいた落とし物が持ち主に返りました",
+                        "message": "ご協力ありがとうございました。",
+                        "createdAt": "@body('Item')?['ReturnedAt']"
+                      },
+                      "runAfter": {}
+                    },
+                    "FinderReceiptExisting": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "GET",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items?$filter=Title eq '@{outputs('FinderReceiptValue')?['key']}'&$top=1",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata"
+                          }
+                        },
+                        "authentication": "@parameters('$authentication')"
+                      },
+                      "runAfter": {
+                        "FinderReceiptValue": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "FinderReceiptMissing": {
+                      "type": "If",
+                      "expression": "@empty(body('FinderReceiptExisting')?['value'])",
+                      "actions": {
+                        "FinderReceiptCreate_Body": {
+                          "type": "Compose",
+                          "inputs": {
+                            "Title": "@outputs('FinderReceiptValue')?['key']",
+                            "NotificationKey": "@outputs('FinderReceiptValue')?['key']",
+                            "RecipientUserId": "@if(empty(outputs('FinderReceiptValue')?['owner']),null,int(outputs('FinderReceiptValue')?['owner']))",
+                            "RecipientEmail": "@outputs('FinderReceiptValue')?['email']",
+                            "ItemId": "@outputs('FinderReceiptValue')?['itemId']",
+                            "RequestId": "@outputs('FinderReceiptValue')?['requestId']",
+                            "ClaimId": "@outputs('FinderReceiptValue')?['claimId']",
+                            "NoticeKind": "@outputs('FinderReceiptValue')?['kind']",
+                            "ItemTitle": "@outputs('FinderReceiptValue')?['title']",
+                            "StorageWindow": "@outputs('FinderReceiptValue')?['window']",
+                            "Message": "@outputs('FinderReceiptValue')?['message']",
+                            "NoticeCreatedAt": "@outputs('FinderReceiptValue')?['createdAt']"
+                          },
+                          "runAfter": {}
+                        },
+                        "FinderReceiptCreate": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "POST",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              },
+                              "parameters/body": "@string(outputs('FinderReceiptCreate_Body'))"
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "FinderReceiptCreate_Body": [
+                              "Succeeded"
+                            ]
+                          }
+                        }
+                      },
+                      "else": {
+                        "actions": {}
+                      },
+                      "runAfter": {
+                        "FinderReceiptExisting": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "FinderReceiptRows": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "GET",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items?$filter=Title eq '@{outputs('FinderReceiptValue')?['key']}'&$top=1",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata"
+                          }
+                        },
+                        "authentication": "@parameters('$authentication')"
+                      },
+                      "runAfter": {
+                        "FinderReceiptMissing": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "FinderReceiptOwner": {
+                      "type": "If",
+                      "expression": "@not(empty(outputs('FinderReceiptValue')?['owner']))",
+                      "actions": {
+                        "FinderReceiptBreak_Body": {
+                          "type": "Compose",
+                          "inputs": {},
+                          "runAfter": {}
+                        },
+                        "FinderReceiptBreak": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "POST",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{first(body('FinderReceiptRows')?['value'])?['Id']})/breakroleinheritance(copyRoleAssignments=true,clearSubscopes=false)",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              },
+                              "parameters/body": "@string(outputs('FinderReceiptBreak_Body'))"
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "FinderReceiptBreak_Body": [
+                              "Succeeded"
+                            ]
+                          }
+                        },
+                        "FinderReceiptGrant_Body": {
+                          "type": "Compose",
+                          "inputs": {},
+                          "runAfter": {
+                            "FinderReceiptBreak": [
+                              "Succeeded"
+                            ]
+                          }
+                        },
+                        "FinderReceiptGrant": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "POST",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{first(body('FinderReceiptRows')?['value'])?['Id']})/roleassignments/addroleassignment(principalid=@{outputs('FinderReceiptValue')?['owner']},roledefid=1073741826)",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              },
+                              "parameters/body": "@string(outputs('FinderReceiptGrant_Body'))"
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "FinderReceiptGrant_Body": [
+                              "Succeeded"
+                            ]
+                          }
+                        }
+                      },
+                      "else": {
+                        "actions": {}
+                      },
+                      "runAfter": {
+                        "FinderReceiptRows": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "FinderReceiptMailRows": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "GET",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items?$filter=Title eq '@{outputs('FinderReceiptValue')?['key']}'&$top=1",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata"
+                          }
+                        },
+                        "authentication": "@parameters('$authentication')"
+                      },
+                      "runAfter": {
+                        "FinderReceiptOwner": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "FinderReceiptQueue": {
+                      "type": "If",
+                      "expression": "@and(not(empty(outputs('FinderReceiptValue')?['email'])),empty(body('FinderReceiptMailRows')?['value']))",
+                      "actions": {
+                        "FinderReceiptMail_Body": {
+                          "type": "Compose",
+                          "inputs": {
+                            "Title": "@outputs('FinderReceiptValue')?['key']",
+                            "NotificationKey": "@outputs('FinderReceiptValue')?['key']",
+                            "RecipientEmail": "@outputs('FinderReceiptValue')?['email']",
+                            "MailSubject": "@outputs('FinderReceiptValue')?['title']",
+                            "MailBody": "@concat(outputs('FinderReceiptValue')?['message'],decodeUriComponent('%0A'),'受取窓口：',outputs('FinderReceiptValue')?['window'],decodeUriComponent('%0A'),'https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2','?lfNotice=',string(first(body('FinderReceiptRows')?['value'])?['Id']))",
+                            "MailStatus": "PENDING",
+                            "ErrorMessage": ""
+                          },
+                          "runAfter": {}
+                        },
+                        "FinderReceiptMail": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "POST",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              },
+                              "parameters/body": "@string(outputs('FinderReceiptMail_Body'))"
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "FinderReceiptMail_Body": [
+                              "Succeeded"
+                            ]
+                          }
+                        }
+                      },
+                      "else": {
+                        "actions": {}
+                      },
+                      "runAfter": {
+                        "FinderReceiptMailRows": [
+                          "Succeeded"
+                        ]
+                      }
+                    }
+                  },
+                  "runAfter": {
+                    "Finder": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "actions": {}
+              },
+              "runAfter": {
+                "HasRequest": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "else": {
+            "actions": {
+              "Corrected": {
+                "type": "If",
+                "expression": "@and(equals(body('Item')?['Status'],'保管中'),not(empty(body('Item')?['ReturnAudit'])))",
+                "actions": {
+                  "OldReceipts": {
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                      "host": {
+                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                        "connectionName": "shared_sharepointonline",
+                        "operationId": "GetItems"
+                      },
+                      "parameters": {
+                        "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                        "table": "9c910cf5-0120-4d66-9c0a-ba5b54d1b131",
+                        "$filter": "NoticeKind eq 'RETURN' or NoticeKind eq 'FINDER'"
+                      },
+                      "authentication": "@parameters('$authentication')"
+                    },
+                    "runtimeConfiguration": {
+                      "paginationPolicy": {
+                        "minimumItemCount": 100000
+                      }
+                    },
+                    "runAfter": {}
+                  },
+                  "EachOldReceipt": {
+                    "type": "Foreach",
+                    "foreach": "@body('OldReceipts')?['value']",
+                    "actions": {
+                      "BelongsToCorrection": {
+                        "type": "If",
+                        "expression": "@and(equals(items('EachOldReceipt')?['ItemId'],string(body('Item')?['Id'])),contains(createArray('RETURN','FINDER'),items('EachOldReceipt')?['NoticeKind']))",
+                        "actions": {
+                          "OldRow": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "GET",
+                                "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{items('EachOldReceipt')?['ID']})",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata"
+                                }
+                              },
+                              "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {}
+                          },
+                          "RemoveReceipt_Body": {
+                            "type": "Compose",
+                            "inputs": {},
+                            "runAfter": {
+                              "OldRow": [
+                                "Succeeded"
+                              ]
+                            }
+                          },
+                          "RemoveReceipt": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "POST",
+                                "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{items('EachOldReceipt')?['ID']})",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata",
+                                  "X-HTTP-Method": "DELETE",
+                                  "IF-MATCH": "@body('OldRow')?['odata.etag']"
+                                },
+                                "parameters/body": "@string(outputs('RemoveReceipt_Body'))"
+                              },
+                              "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {
+                              "RemoveReceipt_Body": [
+                                "Succeeded"
+                              ]
+                            }
+                          },
+                          "PendingMail": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "GET",
+                                "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items?$filter=Title eq '@{items('EachOldReceipt')?['NotificationKey']}'",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata"
+                                }
+                              },
+                              "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {
+                              "RemoveReceipt": [
+                                "Succeeded"
+                              ]
+                            }
+                          },
+                          "EachPendingMail": {
+                            "type": "Foreach",
+                            "foreach": "@body('PendingMail')?['value']",
+                            "actions": {
+                              "Unsent": {
+                                "type": "If",
+                                "expression": "@equals(items('EachPendingMail')?['MailStatus'],'PENDING')",
+                                "actions": {
+                                  "RemoveMail_Body": {
+                                    "type": "Compose",
+                                    "inputs": {},
+                                    "runAfter": {}
+                                  },
+                                  "RemoveMail": {
+                                    "type": "OpenApiConnection",
+                                    "inputs": {
+                                      "host": {
+                                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                        "connectionName": "shared_sharepointonline",
+                                        "operationId": "HttpRequest"
+                                      },
+                                      "parameters": {
+                                        "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                        "parameters/method": "POST",
+                                        "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items(@{items('EachPendingMail')?['Id']})",
+                                        "parameters/headers": {
+                                          "Accept": "application/json;odata=minimalmetadata",
+                                          "Content-Type": "application/json;odata=nometadata",
+                                          "X-HTTP-Method": "DELETE",
+                                          "IF-MATCH": "@items('EachPendingMail')?['odata.etag']"
+                                        },
+                                        "parameters/body": "@string(outputs('RemoveMail_Body'))"
+                                      },
+                                      "authentication": "@parameters('$authentication')"
+                                    },
+                                    "runAfter": {
+                                      "RemoveMail_Body": [
+                                        "Succeeded"
+                                      ]
+                                    }
+                                  }
+                                },
+                                "else": {
+                                  "actions": {}
+                                },
+                                "runAfter": {}
+                              }
+                            },
+                            "runtimeConfiguration": {
+                              "concurrency": {
+                                "repetitions": 1
+                              }
+                            },
+                            "runAfter": {
+                              "PendingMail": [
+                                "Succeeded"
+                              ]
+                            }
+                          }
+                        },
+                        "else": {
+                          "actions": {}
+                        },
+                        "runAfter": {}
+                      }
+                    },
+                    "runtimeConfiguration": {
+                      "concurrency": {
+                        "repetitions": 1
+                      }
+                    },
+                    "runAfter": {
+                      "OldReceipts": [
+                        "Succeeded"
+                      ]
+                    }
+                  },
+                  "AuditAvailable": {
+                    "type": "If",
+                    "expression": "@not(empty(json(body('Item')?['ReturnAudit'])))",
+                    "actions": {
+                      "LastCorrection": {
+                        "type": "Compose",
+                        "inputs": "@last(json(body('Item')?['ReturnAudit']))",
+                        "runAfter": {}
+                      },
+                      "HadRequest": {
+                        "type": "If",
+                        "expression": "@not(empty(outputs('LastCorrection')?['requestId']))",
+                        "actions": {
+                          "PreviousRequest": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "GET",
+                                "parameters/uri": "_api/web/lists/getbytitle('LFRequests')/items(@{int(outputs('LastCorrection')?['requestId'])})?$select=*,Author/EMail&$expand=Author",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata"
+                                }
+                              },
+                              "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {}
+                          },
+                          "OtherReturns": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "GET",
+                                "parameters/uri": "_api/web/lists/getbytitle('FoundItems')/items?$filter=RequestId eq '@{outputs('LastCorrection')?['requestId']}' and Status eq '返却済み'&$top=1",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata"
+                                }
+                              },
+                              "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {
+                              "PreviousRequest": [
+                                "Succeeded"
+                              ]
+                            }
+                          },
+                          "CanReopen": {
+                            "type": "If",
+                            "expression": "@and(equals(body('PreviousRequest')?['RequestStatus'],'RESOLVED'),empty(body('OtherReturns')?['value']),equals(toLower(body('PreviousRequest')?['Author']?['EMail']),toLower(outputs('LastCorrection')?['recipient'])))",
+                            "actions": {
+                              "ReopenRequest_Body": {
+                                "type": "Compose",
+                                "inputs": {
+                                  "RequestStatus": "ACTIVE"
+                                },
+                                "runAfter": {}
+                              },
+                              "ReopenRequest": {
+                                "type": "OpenApiConnection",
+                                "inputs": {
+                                  "host": {
+                                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                    "connectionName": "shared_sharepointonline",
+                                    "operationId": "HttpRequest"
+                                  },
+                                  "parameters": {
+                                    "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                    "parameters/method": "POST",
+                                    "parameters/uri": "_api/web/lists/getbytitle('LFRequests')/items(@{body('PreviousRequest')?['Id']})",
+                                    "parameters/headers": {
+                                      "Accept": "application/json;odata=minimalmetadata",
+                                      "Content-Type": "application/json;odata=nometadata",
+                                      "X-HTTP-Method": "MERGE",
+                                      "IF-MATCH": "@body('PreviousRequest')?['odata.etag']"
+                                    },
+                                    "parameters/body": "@string(outputs('ReopenRequest_Body'))"
+                                  },
+                                  "authentication": "@parameters('$authentication')"
+                                },
+                                "runAfter": {
+                                  "ReopenRequest_Body": [
+                                    "Succeeded"
+                                  ]
+                                }
+                              }
+                            },
+                            "else": {
+                              "actions": {}
+                            },
+                            "runAfter": {
+                              "OtherReturns": [
+                                "Succeeded"
+                              ]
+                            }
+                          }
+                        },
+                        "else": {
+                          "actions": {}
+                        },
+                        "runAfter": {
+                          "LastCorrection": [
+                            "Succeeded"
+                          ]
+                        }
+                      }
+                    },
+                    "else": {
+                      "actions": {}
+                    },
+                    "runAfter": {
+                      "EachOldReceipt": [
+                        "Succeeded"
+                      ]
+                    }
+                  }
+                },
+                "else": {
+                  "actions": {}
+                },
+                "runAfter": {}
+              }
+            }
+          },
+          "runAfter": {
+            "Item": [
+              "Succeeded"
+            ]
+          }
+        }
+      },
+      "outputs": {}
+    }
+  }
+}

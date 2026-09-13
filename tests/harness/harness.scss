@@ -1,0 +1,18 @@
+.lf-test-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 20px;
+  background: #263f37;
+  color: #fff;
+  font: 12px/1.5 sans-serif;
+  flex-wrap: wrap;
+}
+
+.lf-test-toolbar a {
+  color: #fff;
+  padding: 6px 10px;
+  border: 1px solid #6a8274;
+  border-radius: 6px;
+  text-decoration: none;
+}

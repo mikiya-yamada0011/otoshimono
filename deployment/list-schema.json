@@ -1,0 +1,111 @@
+{
+  "LFPublicItems": {
+    "access": "public",
+    "uniqueTitle": true,
+    "viewFields": ["ItemTitle", "ParentCategoryCode", "CategoryCode", "Colors", "CampusCode", "FoundOn", "StorageWindow", "ItemStatus"],
+    "fields": [
+      { "name": "SourceItemId", "type": "Text", "indexed": true },
+      { "name": "ItemTitle", "type": "Text" },
+      { "name": "ParentCategoryCode", "type": "Text", "indexed": true },
+      { "name": "CategoryCode", "type": "Text", "indexed": true },
+      { "name": "Colors", "type": "Text" },
+      { "name": "CampusCode", "type": "Text", "indexed": true },
+      { "name": "BuildingCode", "type": "Text" },
+      { "name": "Place", "type": "Note" },
+      { "name": "FoundOn", "type": "DateOnly", "indexed": true },
+      { "name": "StorageWindow", "type": "Text", "indexed": true },
+      { "name": "Feature", "type": "Note" },
+      { "name": "ItemStatus", "type": "Text", "allowedValues": ["保管中", "返却済み", "移管済み", "処分済み"], "indexed": true },
+      { "name": "SourceCreatedAt", "type": "DateTime" }
+    ]
+  },
+  "LFProfiles": {
+    "access": "own",
+    "uniqueTitle": true,
+    "viewFields": ["DefaultWindow", "DefaultCampusCode", "Author", "Modified"],
+    "fields": [
+      { "name": "DefaultWindow", "type": "Text" },
+      { "name": "DefaultCampusCode", "type": "Text" }
+    ]
+  },
+  "LFRequests": {
+    "access": "own",
+    "uniqueTitle": false,
+    "viewFields": ["ParentCategoryCode", "CategoryCode", "Colors", "CampusCode", "LostFrom", "RequestStatus", "Author", "Created"],
+    "fields": [
+      { "name": "ParentCategoryCode", "type": "Text", "indexed": true },
+      { "name": "CategoryCode", "type": "Text", "indexed": true },
+      { "name": "Colors", "type": "Text" },
+      { "name": "CampusCode", "type": "Text", "indexed": true },
+      { "name": "BuildingCode", "type": "Text" },
+      { "name": "LostFrom", "type": "DateOnly", "indexed": true },
+      { "name": "LostTo", "type": "DateOnly" },
+      { "name": "SearchQuery", "type": "Note" },
+      { "name": "Feature", "type": "Note" },
+      { "name": "RequestStatus", "type": "Text", "allowedValues": ["ACTIVE", "CANCELLED", "RESOLVED"], "indexed": true }
+    ]
+  },
+  "LFClaims": {
+    "access": "own",
+    "uniqueTitle": false,
+    "viewFields": ["ItemId", "RequestId", "ItemTitle", "StorageWindow", "ClaimStatus", "Author", "Created"],
+    "fields": [
+      { "name": "ItemId", "type": "Text", "indexed": true },
+      { "name": "RequestId", "type": "Text", "indexed": true },
+      { "name": "Feature", "type": "Note" },
+      { "name": "ItemTitle", "type": "Text" },
+      { "name": "StorageWindow", "type": "Text", "indexed": true },
+      { "name": "ClaimStatus", "type": "Text", "allowedValues": ["PENDING", "CANCELLED"], "indexed": true }
+    ]
+  },
+  "LFNotices": {
+    "access": "private",
+    "uniqueTitle": true,
+    "viewFields": ["RecipientEmail", "ItemId", "RequestId", "NoticeKind", "ItemTitle", "NoticeCreatedAt"],
+    "fields": [
+      { "name": "NotificationKey", "type": "Text", "indexed": true },
+      { "name": "RecipientUserId", "type": "Number", "indexed": true },
+      { "name": "RecipientEmail", "type": "Text" },
+      { "name": "ItemId", "type": "Text", "indexed": true },
+      { "name": "RequestId", "type": "Text", "indexed": true },
+      { "name": "ClaimId", "type": "Text", "indexed": true },
+      { "name": "NoticeKind", "type": "Text", "allowedValues": ["MATCH", "VALUABLE", "RETURN", "FINDER"], "indexed": true },
+      { "name": "ItemTitle", "type": "Text" },
+      { "name": "StorageWindow", "type": "Text" },
+      { "name": "Message", "type": "Note" },
+      { "name": "NoticeCreatedAt", "type": "DateTime" }
+    ]
+  },
+  "LFThanks": {
+    "access": "own",
+    "uniqueTitle": true,
+    "viewFields": ["ClaimId", "Message", "Author", "Created"],
+    "fields": [
+      { "name": "ClaimId", "type": "Text", "indexed": true },
+      { "name": "Message", "type": "Note" }
+    ]
+  },
+  "LFPublicThanks": {
+    "access": "public",
+    "uniqueTitle": true,
+    "viewFields": ["SourceThanksId", "Message", "SubmittedAt"],
+    "fields": [
+      { "name": "SourceThanksId", "type": "Text", "indexed": true },
+      { "name": "Message", "type": "Note" },
+      { "name": "SubmittedAt", "type": "DateTime" }
+    ]
+  },
+  "LFMailOutbox": {
+    "access": "private",
+    "uniqueTitle": true,
+    "viewFields": ["RecipientEmail", "MailSubject", "MailStatus", "Modified"],
+    "fields": [
+      { "name": "NotificationKey", "type": "Text", "indexed": true },
+      { "name": "RecipientEmail", "type": "Text", "indexed": true },
+      { "name": "MailSubject", "type": "Text" },
+      { "name": "MailBody", "type": "Note" },
+      { "name": "MailStatus", "type": "Text", "allowedValues": ["PENDING", "PROCESSING", "SENT", "ERROR"], "indexed": true },
+      { "name": "ErrorMessage", "type": "Note" }
+    ]
+  }
+}

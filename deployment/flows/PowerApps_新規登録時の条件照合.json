@@ -1,0 +1,490 @@
+{
+  "properties": {
+    "displayName": "落とし物 QRなし PowerApps_新規登録時の条件照合",
+    "connectionReferences": {},
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        }
+      },
+      "triggers": {
+        "changed": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetOnNewItems"
+            },
+            "parameters": {
+              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+              "table": "617870b8-de06-454f-8267-993453389662"
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "recurrence": {
+            "frequency": "Minute",
+            "interval": 1
+          },
+          "splitOn": "@triggerOutputs()?['body/value']",
+          "runtimeConfiguration": {
+            "concurrency": {
+              "runs": 1
+            }
+          }
+        }
+      },
+      "actions": {
+        "Item": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "HttpRequest"
+            },
+            "parameters": {
+              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+              "parameters/method": "GET",
+              "parameters/uri": "_api/web/lists/getbytitle('FoundItems')/items(@{triggerBody()?['ID']})",
+              "parameters/headers": {
+                "Accept": "application/json;odata=minimalmetadata",
+                "Content-Type": "application/json;odata=nometadata"
+              }
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runAfter": {}
+        },
+        "NormalStored": {
+          "type": "If",
+          "expression": "@and(equals(body('Item')?['Status'],'保管中'),equals(body('Item')?['IsPublic'],true),not(empty(body('Item')?['ParentCategoryCode'])),not(contains(createArray('P01','P10','P11','P12'),body('Item')?['ParentCategoryCode'])),not(contains(createArray('P02_SMARTPHONE','P02_LAPTOP','P02_TABLET','P02_STORAGE_MEDIA'),body('Item')?['CategoryCode'])))",
+          "actions": {
+            "FoundDate": {
+              "type": "Compose",
+              "inputs": "@if(empty(body('Item')?['FoundOn']),'',convertTimeZone(body('Item')?['FoundOn'],'UTC','Tokyo Standard Time','yyyy-MM-dd'))",
+              "runAfter": {}
+            },
+            "Colors": {
+              "type": "Compose",
+              "inputs": "@if(empty(body('Item')?['Color']),json('[]'),split(replace(replace(replace(replace(body('Item')?['Color'],',',';'),'、',';'),'/',';'),'|',';'),';'))",
+              "runAfter": {
+                "FoundDate": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Requests": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "GetItems"
+                },
+                "parameters": {
+                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                  "table": "514d2cfc-b1bb-4b10-b3c1-423af23e327e",
+                  "$filter": "RequestStatus eq 'ACTIVE'"
+                },
+                "authentication": "@parameters('$authentication')"
+              },
+              "runtimeConfiguration": {
+                "paginationPolicy": {
+                  "minimumItemCount": 100000
+                }
+              },
+              "runAfter": {
+                "Colors": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "EachRequest": {
+              "type": "Foreach",
+              "foreach": "@body('Requests')?['value']",
+              "actions": {
+                "RequestColors": {
+                  "type": "Compose",
+                  "inputs": "@if(empty(items('EachRequest')?['Colors']),json('[]'),split(items('EachRequest')?['Colors'],';'))",
+                  "runAfter": {}
+                },
+                "UnmatchedWords": {
+                  "type": "Query",
+                  "inputs": {
+                    "from": "@split(replace(replace(replace(replace(toLower(coalesce(items('EachRequest')?['SearchQuery'],'')),decodeUriComponent('%09'),' '),decodeUriComponent('%0A'),' '),decodeUriComponent('%0D'),' '),'　',' '),' ')",
+                    "where": "@and(not(empty(item())),not(contains(toLower(concat(coalesce(body('Item')?['Title'],''),' ',coalesce(body('Item')?['Feature'],''),' ',coalesce(body('Item')?['Place'],''),' ',coalesce(body('Item')?['StorageWindow'],''),' ',join(outputs('Colors'),' '))),item())))"
+                  },
+                  "runAfter": {
+                    "RequestColors": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "Matches": {
+                  "type": "If",
+                  "expression": "@and(empty(body('UnmatchedWords')),equals(items('EachRequest')?['RequestStatus'],'ACTIVE'),lessOrEquals(ticks(items('EachRequest')?['Created']),ticks(body('Item')?['Created'])),equals(items('EachRequest')?['ParentCategoryCode'],body('Item')?['ParentCategoryCode']),or(empty(items('EachRequest')?['CategoryCode']),equals(items('EachRequest')?['CategoryCode'],body('Item')?['CategoryCode'])),or(empty(outputs('RequestColors')),greater(length(intersection(outputs('RequestColors'),outputs('Colors'))),0)),or(empty(items('EachRequest')?['CampusCode']),equals(items('EachRequest')?['CampusCode'],body('Item')?['CampusCode'])),or(empty(items('EachRequest')?['LostFrom']),greaterOrEquals(outputs('FoundDate'),formatDateTime(items('EachRequest')?['LostFrom'],'yyyy-MM-dd'))))",
+                  "actions": {
+                    "TrustedRequest": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "GET",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFRequests')/items(@{items('EachRequest')?['ID']})?$select=*,Author/EMail&$expand=Author",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata"
+                          }
+                        },
+                        "authentication": "@parameters('$authentication')"
+                      },
+                      "runAfter": {}
+                    },
+                    "Student": {
+                      "type": "If",
+                      "expression": "@and(contains(createArray('stu.kobe-u.ac.jp'),last(split(toLower(body('TrustedRequest')?['Author']?['EMail']),'@'))),or(contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'0'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'1'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'2'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'3'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'4'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'5'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'6'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'7'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'8'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'9')))",
+                      "actions": {
+                        "MatchValue": {
+                          "type": "Compose",
+                          "inputs": {
+                            "itemId": "@string(body('Item')?['Id'])",
+                            "window": "@coalesce(body('Item')?['StorageWindow'],'')",
+                            "key": "@concat('MATCH:',string(body('Item')?['Id']),':',string(body('TrustedRequest')?['AuthorId']),':',string(body('TrustedRequest')?['Id']),':')",
+                            "owner": "@string(body('TrustedRequest')?['AuthorId'])",
+                            "email": "@toLower(body('TrustedRequest')?['Author']?['EMail'])",
+                            "requestId": "@string(body('TrustedRequest')?['Id'])",
+                            "claimId": "",
+                            "kind": "MATCH",
+                            "title": "条件に近い落とし物が届きました",
+                            "message": "@concat(body('Item')?['Title'],'が届いています。詳細を確認してからお申し出ください。')",
+                            "createdAt": "@utcNow()"
+                          },
+                          "runAfter": {}
+                        },
+                        "MatchExisting": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "GET",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items?$filter=Title eq '@{outputs('MatchValue')?['key']}'&$top=1",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              }
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "MatchValue": [
+                              "Succeeded"
+                            ]
+                          }
+                        },
+                        "MatchMissing": {
+                          "type": "If",
+                          "expression": "@empty(body('MatchExisting')?['value'])",
+                          "actions": {
+                            "MatchCreate_Body": {
+                              "type": "Compose",
+                              "inputs": {
+                                "Title": "@outputs('MatchValue')?['key']",
+                                "NotificationKey": "@outputs('MatchValue')?['key']",
+                                "RecipientUserId": "@if(empty(outputs('MatchValue')?['owner']),null,int(outputs('MatchValue')?['owner']))",
+                                "RecipientEmail": "@outputs('MatchValue')?['email']",
+                                "ItemId": "@outputs('MatchValue')?['itemId']",
+                                "RequestId": "@outputs('MatchValue')?['requestId']",
+                                "ClaimId": "@outputs('MatchValue')?['claimId']",
+                                "NoticeKind": "@outputs('MatchValue')?['kind']",
+                                "ItemTitle": "@outputs('MatchValue')?['title']",
+                                "StorageWindow": "@outputs('MatchValue')?['window']",
+                                "Message": "@outputs('MatchValue')?['message']",
+                                "NoticeCreatedAt": "@outputs('MatchValue')?['createdAt']"
+                              },
+                              "runAfter": {}
+                            },
+                            "MatchCreate": {
+                              "type": "OpenApiConnection",
+                              "inputs": {
+                                "host": {
+                                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                  "connectionName": "shared_sharepointonline",
+                                  "operationId": "HttpRequest"
+                                },
+                                "parameters": {
+                                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                  "parameters/method": "POST",
+                                  "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items",
+                                  "parameters/headers": {
+                                    "Accept": "application/json;odata=minimalmetadata",
+                                    "Content-Type": "application/json;odata=nometadata"
+                                  },
+                                  "parameters/body": "@string(outputs('MatchCreate_Body'))"
+                                },
+                                "authentication": "@parameters('$authentication')"
+                              },
+                              "runAfter": {
+                                "MatchCreate_Body": [
+                                  "Succeeded"
+                                ]
+                              }
+                            }
+                          },
+                          "else": {
+                            "actions": {}
+                          },
+                          "runAfter": {
+                            "MatchExisting": [
+                              "Succeeded"
+                            ]
+                          }
+                        },
+                        "MatchRows": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "GET",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items?$filter=Title eq '@{outputs('MatchValue')?['key']}'&$top=1",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              }
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "MatchMissing": [
+                              "Succeeded"
+                            ]
+                          }
+                        },
+                        "MatchOwner": {
+                          "type": "If",
+                          "expression": "@not(empty(outputs('MatchValue')?['owner']))",
+                          "actions": {
+                            "MatchBreak_Body": {
+                              "type": "Compose",
+                              "inputs": {},
+                              "runAfter": {}
+                            },
+                            "MatchBreak": {
+                              "type": "OpenApiConnection",
+                              "inputs": {
+                                "host": {
+                                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                  "connectionName": "shared_sharepointonline",
+                                  "operationId": "HttpRequest"
+                                },
+                                "parameters": {
+                                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                  "parameters/method": "POST",
+                                  "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{first(body('MatchRows')?['value'])?['Id']})/breakroleinheritance(copyRoleAssignments=true,clearSubscopes=false)",
+                                  "parameters/headers": {
+                                    "Accept": "application/json;odata=minimalmetadata",
+                                    "Content-Type": "application/json;odata=nometadata"
+                                  },
+                                  "parameters/body": "@string(outputs('MatchBreak_Body'))"
+                                },
+                                "authentication": "@parameters('$authentication')"
+                              },
+                              "runAfter": {
+                                "MatchBreak_Body": [
+                                  "Succeeded"
+                                ]
+                              }
+                            },
+                            "MatchGrant_Body": {
+                              "type": "Compose",
+                              "inputs": {},
+                              "runAfter": {
+                                "MatchBreak": [
+                                  "Succeeded"
+                                ]
+                              }
+                            },
+                            "MatchGrant": {
+                              "type": "OpenApiConnection",
+                              "inputs": {
+                                "host": {
+                                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                  "connectionName": "shared_sharepointonline",
+                                  "operationId": "HttpRequest"
+                                },
+                                "parameters": {
+                                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                  "parameters/method": "POST",
+                                  "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{first(body('MatchRows')?['value'])?['Id']})/roleassignments/addroleassignment(principalid=@{outputs('MatchValue')?['owner']},roledefid=1073741826)",
+                                  "parameters/headers": {
+                                    "Accept": "application/json;odata=minimalmetadata",
+                                    "Content-Type": "application/json;odata=nometadata"
+                                  },
+                                  "parameters/body": "@string(outputs('MatchGrant_Body'))"
+                                },
+                                "authentication": "@parameters('$authentication')"
+                              },
+                              "runAfter": {
+                                "MatchGrant_Body": [
+                                  "Succeeded"
+                                ]
+                              }
+                            }
+                          },
+                          "else": {
+                            "actions": {}
+                          },
+                          "runAfter": {
+                            "MatchRows": [
+                              "Succeeded"
+                            ]
+                          }
+                        },
+                        "MatchMailRows": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "GET",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items?$filter=Title eq '@{outputs('MatchValue')?['key']}'&$top=1",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              }
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "MatchOwner": [
+                              "Succeeded"
+                            ]
+                          }
+                        },
+                        "MatchQueue": {
+                          "type": "If",
+                          "expression": "@and(not(empty(outputs('MatchValue')?['email'])),empty(body('MatchMailRows')?['value']))",
+                          "actions": {
+                            "MatchMail_Body": {
+                              "type": "Compose",
+                              "inputs": {
+                                "Title": "@outputs('MatchValue')?['key']",
+                                "NotificationKey": "@outputs('MatchValue')?['key']",
+                                "RecipientEmail": "@outputs('MatchValue')?['email']",
+                                "MailSubject": "@outputs('MatchValue')?['title']",
+                                "MailBody": "@concat(outputs('MatchValue')?['message'],decodeUriComponent('%0A'),'受取窓口：',outputs('MatchValue')?['window'],decodeUriComponent('%0A'),'https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2','?lfNotice=',string(first(body('MatchRows')?['value'])?['Id']))",
+                                "MailStatus": "PENDING",
+                                "ErrorMessage": ""
+                              },
+                              "runAfter": {}
+                            },
+                            "MatchMail": {
+                              "type": "OpenApiConnection",
+                              "inputs": {
+                                "host": {
+                                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                  "connectionName": "shared_sharepointonline",
+                                  "operationId": "HttpRequest"
+                                },
+                                "parameters": {
+                                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                  "parameters/method": "POST",
+                                  "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items",
+                                  "parameters/headers": {
+                                    "Accept": "application/json;odata=minimalmetadata",
+                                    "Content-Type": "application/json;odata=nometadata"
+                                  },
+                                  "parameters/body": "@string(outputs('MatchMail_Body'))"
+                                },
+                                "authentication": "@parameters('$authentication')"
+                              },
+                              "runAfter": {
+                                "MatchMail_Body": [
+                                  "Succeeded"
+                                ]
+                              }
+                            }
+                          },
+                          "else": {
+                            "actions": {}
+                          },
+                          "runAfter": {
+                            "MatchMailRows": [
+                              "Succeeded"
+                            ]
+                          }
+                        }
+                      },
+                      "else": {
+                        "actions": {}
+                      },
+                      "runAfter": {
+                        "TrustedRequest": [
+                          "Succeeded"
+                        ]
+                      }
+                    }
+                  },
+                  "else": {
+                    "actions": {}
+                  },
+                  "runAfter": {
+                    "UnmatchedWords": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 1
+                }
+              },
+              "runAfter": {
+                "Requests": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "else": {
+            "actions": {}
+          },
+          "runAfter": {
+            "Item": [
+              "Succeeded"
+            ]
+          }
+        }
+      },
+      "outputs": {}
+    }
+  }
+}

@@ -1,0 +1,57 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Dependency directories
+node_modules
+
+# Build generated files
+dist
+lib
+lib-dts
+lib-commonjs
+lib-esm
+jest-output
+release
+solution
+temp
+*.sppkg
+*.msapp
+.heft
+
+# Environment-specific deployment results
+deployment/site.json
+deployment/*-deployment.json
+deployment/*-report*.json
+deployment/last-*.json
+
+# Local Power Apps browser automation (kept outside the public SPFx source)
+scripts/create-powerapps-test-claim.mjs
+scripts/create-powerapps-test-requests.mjs
+scripts/import-staff-app.mjs
+scripts/show-powerapps-test-claim.mjs
+scripts/staff-studio.mjs
+scripts/verify-request-cards.mjs
+scripts/verify-staff-filters.mjs
+scripts/verify-staff-preview.mjs
+
+# Coverage directory used by tools like istanbul
+coverage
+test-results
+playwright-report
+
+# OSX
+.DS_Store
+
+# Visual Studio files
+.ntvs_analysis.dat
+.vs
+bin
+obj
+
+# Resx Generated Code
+*.resx.ts
+
+# Styles Generated Code
+*.scss.ts

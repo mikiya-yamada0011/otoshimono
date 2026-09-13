@@ -1,0 +1,301 @@
+{
+  "properties": {
+    "displayName": "落とし物 QRなし メール送信",
+    "connectionReferences": {},
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        }
+      },
+      "triggers": {
+        "tick": {
+          "type": "Recurrence",
+          "recurrence": {
+            "frequency": "Minute",
+            "interval": 1
+          },
+          "runtimeConfiguration": {
+            "concurrency": {
+              "runs": 1
+            }
+          }
+        }
+      },
+      "actions": {
+        "Queue": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetItems"
+            },
+            "parameters": {
+              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+              "table": "e19d894a-0e2a-4824-86a0-df706892ed90",
+              "$filter": "MailStatus eq 'PENDING'"
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runtimeConfiguration": {
+            "paginationPolicy": {
+              "minimumItemCount": 100000
+            }
+          },
+          "runAfter": {}
+        },
+        "EachMail": {
+          "type": "Foreach",
+          "foreach": "@body('Queue')?['value']",
+          "actions": {
+            "CurrentMail": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "HttpRequest"
+                },
+                "parameters": {
+                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                  "parameters/method": "GET",
+                  "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items(@{items('EachMail')?['ID']})",
+                  "parameters/headers": {
+                    "Accept": "application/json;odata=minimalmetadata",
+                    "Content-Type": "application/json;odata=nometadata"
+                  }
+                },
+                "authentication": "@parameters('$authentication')"
+              },
+              "runAfter": {}
+            },
+            "Pending": {
+              "type": "If",
+              "expression": "@equals(body('CurrentMail')?['MailStatus'],'PENDING')",
+              "actions": {
+                "Acquire_Body": {
+                  "type": "Compose",
+                  "inputs": {
+                    "MailStatus": "PROCESSING",
+                    "ErrorMessage": ""
+                  },
+                  "runAfter": {}
+                },
+                "Acquire": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "POST",
+                      "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items(@{body('CurrentMail')?['Id']})",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata",
+                        "X-HTTP-Method": "MERGE",
+                        "IF-MATCH": "@body('CurrentMail')?['odata.etag']"
+                      },
+                      "parameters/body": "@string(outputs('Acquire_Body'))"
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {
+                    "Acquire_Body": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "Send": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_office365",
+                      "connectionName": "shared_office365",
+                      "operationId": "SendEmailV2"
+                    },
+                    "parameters": {
+                      "emailMessage/To": "@body('CurrentMail')?['RecipientEmail']",
+                      "emailMessage/Subject": "@body('CurrentMail')?['MailSubject']",
+                      "emailMessage/Body": "<pre>@{replace(replace(replace(body('CurrentMail')?['MailBody'],'&','&amp;'),'<','&lt;'),'>','&gt;')}</pre>"
+                    },
+                    "authentication": "@parameters('$authentication')",
+                    "retryPolicy": {
+                      "type": "none"
+                    }
+                  },
+                  "runAfter": {
+                    "Acquire": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "AfterSend": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "GET",
+                      "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items(@{body('CurrentMail')?['Id']})",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata"
+                      }
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {
+                    "Send": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "MarkSent_Body": {
+                  "type": "Compose",
+                  "inputs": {
+                    "MailStatus": "SENT",
+                    "ErrorMessage": ""
+                  },
+                  "runAfter": {
+                    "AfterSend": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "MarkSent": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "POST",
+                      "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items(@{body('CurrentMail')?['Id']})",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata",
+                        "X-HTTP-Method": "MERGE",
+                        "IF-MATCH": "@body('AfterSend')?['odata.etag']"
+                      },
+                      "parameters/body": "@string(outputs('MarkSent_Body'))"
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {
+                    "MarkSent_Body": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "AfterFailure": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "GET",
+                      "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items(@{body('CurrentMail')?['Id']})",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata"
+                      }
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {
+                    "Send": [
+                      "Failed",
+                      "TimedOut"
+                    ]
+                  }
+                },
+                "MarkError_Body": {
+                  "type": "Compose",
+                  "inputs": {
+                    "MailStatus": "ERROR",
+                    "ErrorMessage": "送信結果を実行履歴で確認してください。自動再送はしません。"
+                  },
+                  "runAfter": {
+                    "AfterFailure": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "MarkError": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "POST",
+                      "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items(@{body('CurrentMail')?['Id']})",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata",
+                        "X-HTTP-Method": "MERGE",
+                        "IF-MATCH": "@body('AfterFailure')?['odata.etag']"
+                      },
+                      "parameters/body": "@string(outputs('MarkError_Body'))"
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {
+                    "MarkError_Body": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "actions": {}
+              },
+              "runAfter": {
+                "CurrentMail": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "runtimeConfiguration": {
+            "concurrency": {
+              "repetitions": 1
+            }
+          },
+          "runAfter": {
+            "Queue": [
+              "Succeeded"
+            ]
+          }
+        }
+      },
+      "outputs": {}
+    }
+  }
+}

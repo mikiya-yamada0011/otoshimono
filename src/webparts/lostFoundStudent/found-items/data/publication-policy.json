@@ -1,0 +1,4 @@
+{
+  "privateParentCodes": ["P01", "P10", "P11", "P12"],
+  "privateCategoryCodes": ["P02_SMARTPHONE", "P02_LAPTOP", "P02_TABLET", "P02_STORAGE_MEDIA"]
+}
