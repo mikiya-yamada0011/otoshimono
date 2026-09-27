@@ -1076,7 +1076,8 @@ test('学生は公開区分を選ばず、一覧に出ない物も同じ申告�
 
   await page.getByRole('dialog').getByRole('button',{name:'紛失した物を登録',exact:true}).click();
   await expect(page.getByText('紛失した物を登録しました。条件に合う候補が見つかるとお知らせします。')).toBeVisible();
-  await expect(page.getByRole('heading',{name:'紛失した物',exact:true})).toBeVisible();
+  await expect(page.getByRole('main',{name:'紛失した物',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'紛失した物',exact:true})).toHaveCount(0);
   await page.getByRole('button',{name:'紛失した物を登録',exact:true}).click();
   await expect(page.getByRole('dialog').getByRole('group',{name:'種類',exact:true}).getByRole('radio',{name:'すべて',exact:true})).toBeChecked();
   const db=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));
@@ -1565,7 +1566,8 @@ test('一覧からの申し込みも紛失した物を自動登録し、1件と�
   await expect(page.getByRole('dialog').getByLabel('特徴（任意）')).toBeVisible();
   await expect(page.getByRole('dialog').getByRole('combobox')).toHaveCount(0);
   await page.getByRole('dialog').getByRole('button',{name:'受け取りを申し込む'}).click();
-  await expect(page.getByRole('heading',{name:'紛失した物',exact:true})).toBeVisible();
+  await expect(page.getByRole('main',{name:'紛失した物',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'紛失した物',exact:true})).toHaveCount(0);
   await expect(page.locator('.lf-record-card')).toHaveCount(1);
   await expect(page.locator('.lf-record-card')).toContainText('受け取り予定');
   await expect(page.getByText('受け取りを申し込みました。保管窓口へ取りに来てください。窓口では学校メールをお伝えください。')).toBeVisible();
@@ -1691,7 +1693,8 @@ test('候補は申告の下で開閉し、複数・重複・終了候補を整�
   await expect(rows.first()).toBeVisible();await expect(disclosure.locator('details')).toHaveCount(0);
   await expect(page.getByText('非公開の品名は秘密')).toHaveCount(0);
   await expect(page.getByText('非公開の特徴は秘密')).toHaveCount(0);
-  await expect(page.getByRole('heading',{name:'紛失した物',exact:true})).toBeVisible();
+  await expect(page.getByRole('main',{name:'紛失した物',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'紛失した物',exact:true})).toHaveCount(0);
   expect((await page.locator('body').evaluate(el=>el.scrollWidth))).toBe(375);
   await page.screenshot({path:'temp/screenshots/student-multiple-candidates.png',fullPage:true});
   await page.evaluate(()=>{
