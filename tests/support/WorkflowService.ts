@@ -126,6 +126,10 @@ export class WorkflowService implements AdminAppService {
     const key=[value.kind,value.itemId,value.owner,value.requestId,value.claimId].join(':');
     const notices=cache?.notices || await this.repo.list('notices');
     const existing=notices.find(r=>r.value.key===key);
+    if(existing?.value.unavailable && value.kind==='VALUABLE') {
+      await this.repo.put('notices',{...existing.value,unavailable:false},existing.id,existing.etag);
+      existing.value.unavailable=false;
+    }
     const id=existing?.id || await this.repo.put('notices',{...value,key});
     if(value.owner && !existing?.value.accessGranted) {
       await this.repo.grantNotice(id,value.owner);
@@ -199,6 +203,12 @@ export class WorkflowService implements AdminAppService {
           await this.notice({owner:r.owner,email:r.email,itemId:item.id,requestId:r.id,claimId:'',kind:'MATCH',title:'条件に近い落とし物が届きました',window:item.window,message:`${item.title}が届いています。詳細を確認してからお申し出ください。`,createdAt:now()},cache);
         }
       } else if(projection) await this.repo.remove('public',projection.id);
+      if(item.status!=='保管中') {
+        for(const notice of cache.notices.filter(row=>row.value.itemId===item.id && row.value.kind==='VALUABLE' && !row.value.unavailable)) {
+          await this.repo.put('notices',{...notice.value,unavailable:true},notice.id,notice.etag);
+          notice.value.unavailable=true;
+        }
+      }
       if(item.status==='返却済み') {
         const claim=claims.find(row=>row.id===item.claimId && row.value.itemId===item.id);
         if(claim && claim.value.status!=='RETURNED') await this.repo.put('claims',{...claim.value,status:'RETURNED',returnedAt:item.returnedAt || now()},claim.id,claim.etag);

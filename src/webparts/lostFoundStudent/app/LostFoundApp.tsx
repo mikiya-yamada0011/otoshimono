@@ -24,7 +24,7 @@ export default function LostFoundApp({ service }: { service: AppService }): Reac
   const pages: Record<Page, React.ReactNode> | undefined = app.data ? {
     search: <SearchPage data={app.data} criteria={app.criteria} filtersApplied={app.filtersApplied} setCriteria={app.setCriteria} setDraft={app.setDraft} setFiltersApplied={app.setFiltersApplied} setModal={app.setModal}/>,
     requests: <RequestsPage data={app.data} service={service} run={app.run} setModal={app.setModal} startNewRequest={startNewRequest}/>,
-    notices: <NoticesPage data={app.data} showPageAfterAction={app.showPageAfterAction} setModal={app.setModal} setError={app.setError}/>,
+    notices: <NoticesPage data={app.data} setModal={app.setModal} setError={app.setError}/>,
     history: <HistoryPage data={app.data}/>,
     found: <FoundSubmissionsPage data={app.data} service={service} setModal={app.setModal}/>,
     settings: <AccountInfo data={app.data}/>

@@ -14,7 +14,7 @@ export function validRecord(table: string, value: unknown): value is Record<stri
     return strings('feature','status','createdAt') && (v.key===undefined || typeof v.key==='string') && ['ACTIVE','CANCELLED','RESOLVED'].includes(String(v.status)) && !!c && ['parent','category','building','dateFrom','dateTo','query'].every(k=>typeof c[k]==='string') && colors(c.colors) && Array.isArray(c.campuses) && c.campuses.every(code=>CAMPUSES.some(campus=>campus.code===code)) && new Set(c.campuses).size===c.campuses.length;
   }
   if(table==='claims') return strings('email','itemId','requestId','feature','title','window','createdAt','returnedAt') && ['PENDING','CANCELLED','RETURNED','UNAVAILABLE'].includes(String(v.status));
-  if(table==='notices') return strings('key','owner','email','itemId','requestId','claimId','title','window','message','createdAt') && ['MATCH','VALUABLE'].includes(String(v.kind));
+  if(table==='notices') return strings('key','owner','email','itemId','requestId','claimId','title','window','message','createdAt') && ['MATCH','VALUABLE'].includes(String(v.kind)) && (v.unavailable===undefined || typeof v.unavailable==='boolean');
   if(table==='public') return strings('sourceId','parent','category','title','campus','building','place','foundOn','window','feature','status','createdAt') && typeof v.valuable==='boolean' && colors(v.colors);
   if(table==='mail') return strings('key','email','subject','body') && ['PENDING','PROCESSING','SENT','ERROR'].includes(String(v.status));
   return false;

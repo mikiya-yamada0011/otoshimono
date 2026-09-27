@@ -1142,7 +1142,8 @@ test('財布も共通の登録ボタンから保存し、非公開品の案内�
   expect(accepted.claims[0].value).toMatchObject({itemId:'4',requestId:db.requests[0].id,feature:'内側のポケットに星のシール',status:'PENDING'});
   await page.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'お知らせ',exact:true}).click();
   await expect(page.getByRole('button',{name:'受け取りを申し込む',exact:true})).toHaveCount(0);
-  await expect(page.getByRole('button',{name:'受け取り予定を確認',exact:true})).toBeVisible();
+  await expect(page.locator('.lf-panel .lf-badge')).toHaveText('受け取り予定');
+  await expect(page.getByRole('button',{name:'受け取り予定を確認',exact:true})).toHaveCount(0);
 });
 
 test('同じ腕時計でも品物ごとの公開設定を反映し、非公開の時計を共通の申告から探せる',async({page,context})=>{

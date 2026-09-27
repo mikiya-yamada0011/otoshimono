@@ -49,9 +49,10 @@ for (const width of [390, 1200]) {
     expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!).claims.length)).toBe(0);
     await privateDialog.getByRole('button', {name:'受け取りを申し込む'}).click();
     await menu.getByRole('button', {name:'お知らせ', exact:true}).click();
-    await expect(privateNotice.getByRole('button')).toHaveText('受け取り予定を確認');
+    await expect(privateNotice.locator('.lf-badge')).toHaveText('受け取り予定');
+    await expect(privateNotice.getByRole('button')).toHaveCount(0);
     await expect(publicNotice.getByRole('button')).toHaveText('候補を確認');
-    await privateNotice.getByRole('button').click();
+    await menu.getByRole('button', {name:'紛失した物', exact:true}).click();
     const pending = page.locator('.lf-record-card').filter({has:page.getByText('受け取り予定', {exact:true})});
     page.once('dialog', confirmation => confirmation.accept());
     await pending.getByRole('button', {name:'受け取りをキャンセル'}).click();
@@ -68,7 +69,8 @@ for (const width of [390, 1200]) {
       localStorage.setItem(key, JSON.stringify(db));
       window.dispatchEvent(new Event('focus'));
     });
-    await expect(privateNotice.getByRole('button')).toHaveText('受け取り済み');
+    await expect(privateNotice.locator('.lf-badge')).toHaveText('受け取り済み');
+    await expect(privateNotice.getByRole('button')).toHaveCount(0);
     await expect(publicNotice.getByRole('button')).toHaveCount(0);
     await expect(publicNotice).toContainText('この候補は現在受け取りできません。');
     await expect(cards.locator('h3')).toHaveText(Array(2).fill('「スマートフォン・携帯電話」の候補が見つかりました'));

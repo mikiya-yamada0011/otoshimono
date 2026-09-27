@@ -100,7 +100,7 @@ export class StudentService implements AppService {
     if(feature.trim().length>1000) throw new Error('特徴は1000文字以内で入力してください。');
     const data=await this.load();
     const item=data.items.find(i=>i.id===itemId && i.status==='保管中');
-    const invitation=data.claims.some(claim=>claim.itemId===itemId && claim.status==='UNAVAILABLE') ? undefined : data.notices.find(n=>n.itemId===itemId && n.requestId===requestId && n.owner===this.repo.user.id && n.kind==='VALUABLE');
+    const invitation=data.claims.some(claim=>claim.itemId===itemId && claim.status==='UNAVAILABLE') ? undefined : data.notices.find(n=>n.itemId===itemId && n.requestId===requestId && n.owner===this.repo.user.id && n.kind==='VALUABLE' && !n.unavailable);
     if(!item && !invitation) throw new Error('この拾得物は現在申し出できません。窓口に確認してください。');
     const existing=data.claims.find(c=>c.itemId===itemId && c.owner===this.repo.user.id && c.status==='PENDING');
     if(existing && (existing.requestId || requestId)) throw new Error('この拾得物はすでに申し出ています。「紛失した物」を確認してください。');

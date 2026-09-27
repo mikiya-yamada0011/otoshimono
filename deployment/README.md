@@ -107,3 +107,10 @@ npm run sync:public -- --apply
 Playwright用のテストハーネスはブラウザ内保存のため、SharePointやPower Appsには転送しない。通常の開発確認は `npm start` でSharePoint Hosted Workbenchを開く。学生Webパーツの実保存先はLFRequests（紛失申告）・LFClaims（受け取り申告）で、職員Power Appsの同名リストと接続先サイトを合わせる。
 
 今回の学生用パッケージは2.9.1.0。検索条件はモーダルで適用し、該当なしの場合は、結果の直下に紛失申告の登録ボタンを表示する。保存した検索キーワードも新規登録時の照合に使う。5本のPower Automateは検証環境へ配置済みである。
+## 非公開候補の終了状態（2026-09-28）
+
+`LFNotices.CandidateUnavailable`（Boolean、初期値 false）を追加し、更新した `PowerApps_即時公開同期.json` と `PowerApps_返却記録の反映.json` を配置する。SPFx の更新も必要。スキーマを追加する前にフローを更新しないこと。
+
+返却・移管時は、申込前の非公開案内も受け取り不可にする。通知の履歴と未解決の紛失申告は残し、非公開原本の情報は追加しない。古い通知（列なし）は従来の有効な案内として読める。過去に返却・移管済みの品物については、この版の `LFSyncPublicItem` を対象 ID で実行して終了状態を反映する。保管中への訂正だけでは案内を復活させず、職員の明示的な再案内で同じ通知を有効にする。
+
+対象サイトへログインした Edge（CDP 9222）で、ワークスペースのルートから `node tools/provision-sharepoint-candidate-state.mjs` を実行すると、対象リストの ID と列型を確認して変更予定を表示する。`--apply` を付けると状態列を追加し、既存の返却・移管済み品物の非公開案内も更新する。アクセス権・紛失申告・申込・メールは変更しない。

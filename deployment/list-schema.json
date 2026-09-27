@@ -95,6 +95,7 @@
       { "name": "RequestId", "type": "Text", "indexed": true },
       { "name": "ClaimId", "type": "Text", "indexed": true },
       { "name": "NoticeKind", "type": "Text", "allowedValues": ["MATCH", "VALUABLE"], "indexed": true },
+      { "name": "CandidateUnavailable", "type": "Boolean" },
       { "name": "ItemTitle", "type": "Text" },
       { "name": "StorageWindow", "type": "Text" },
       { "name": "Message", "type": "Note" },

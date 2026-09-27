@@ -64,6 +64,153 @@
           },
           "runAfter": {}
         },
+        "CandidateItemEnded": {
+          "type": "If",
+          "expression": "@or(equals(body('Item')?['Status'],'返却済み'),equals(body('Item')?['Status'],'移管済み'))",
+          "actions": {
+            "CandidateNotices": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "GetItems"
+                },
+                "parameters": {
+                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                  "table": "9c910cf5-0120-4d66-9c0a-ba5b54d1b131",
+                  "$filter": "ItemId eq '@{body('Item')?['Id']}' and NoticeKind eq 'VALUABLE'"
+                },
+                "authentication": "@parameters('$authentication')"
+              },
+              "runtimeConfiguration": {
+                "paginationPolicy": {
+                  "minimumItemCount": 5000
+                }
+              },
+              "runAfter": {}
+            },
+            "EachCandidateNotice": {
+              "type": "Foreach",
+              "foreach": "@body('CandidateNotices')?['value']",
+              "actions": {
+                "CandidateCurrentItem": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "GET",
+                      "parameters/uri": "_api/web/lists/getbytitle('FoundItems')/items(@{body('Item')?['Id']})",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata"
+                      }
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {}
+                },
+                "CandidateCurrentNotice": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "GET",
+                      "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{items('EachCandidateNotice')?['ID']})",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata"
+                      }
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {
+                    "CandidateCurrentItem": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "CandidateStillEnded": {
+                  "type": "If",
+                  "expression": "@and(or(equals(body('CandidateCurrentItem')?['Status'],'返却済み'),equals(body('CandidateCurrentItem')?['Status'],'移管済み')),equals(body('CandidateCurrentNotice')?['ItemId'],string(body('CandidateCurrentItem')?['Id'])),not(equals(body('CandidateCurrentNotice')?['CandidateUnavailable'],true)))",
+                  "actions": {
+                    "RetireCandidate_Body": {
+                      "type": "Compose",
+                      "inputs": {
+                        "CandidateUnavailable": true
+                      },
+                      "runAfter": {}
+                    },
+                    "RetireCandidate": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "POST",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{body('CandidateCurrentNotice')?['Id']})",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata",
+                            "X-HTTP-Method": "MERGE",
+                            "IF-MATCH": "@body('CandidateCurrentNotice')?['odata.etag']"
+                          },
+                          "parameters/body": "@string(outputs('RetireCandidate_Body'))"
+                        },
+                        "authentication": "@parameters('$authentication')"
+                      },
+                      "runAfter": {
+                        "RetireCandidate_Body": [
+                          "Succeeded"
+                        ]
+                      }
+                    }
+                  },
+                  "else": {
+                    "actions": {}
+                  },
+                  "runAfter": {
+                    "CandidateCurrentNotice": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "runtimeConfiguration": {
+                "concurrency": {
+                  "repetitions": 1
+                }
+              },
+              "runAfter": {
+                "CandidateNotices": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "else": {
+            "actions": {}
+          },
+          "runAfter": {
+            "Item": [
+              "Succeeded"
+            ]
+          }
+        },
         "Returned": {
           "type": "If",
           "expression": "@equals(body('Item')?['Status'],'返却済み')",
@@ -598,7 +745,7 @@
             }
           },
           "runAfter": {
-            "Item": [
+            "CandidateItemEnded": [
               "Succeeded"
             ]
           }

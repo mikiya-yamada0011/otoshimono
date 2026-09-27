@@ -64,8 +64,11 @@ for (const width of [390, 1200]) {
       expect(db.claims[0].value).toMatchObject({itemId:'4', requestId:'81', title:'スマートフォン・携帯電話', feature:'本人が申告した傷'});
       await menu.getByRole('button', {name:'お知らせ', exact:true}).click();
       await expect(page.getByRole('button', {name:'候補を確認'})).toHaveCount(0);
-      await expect(page.getByRole('button', {name:'受け取り予定を確認'})).toHaveCount(1);
-      await page.getByRole('button', {name:'受け取り予定を確認'}).click();
+      await expect(page.locator('.lf-panel .lf-badge')).toHaveText('受け取り予定');
+      await expect(page.getByRole('button', {name:'受け取り予定を確認'})).toHaveCount(0);
+      await expect(page.locator('.lf-stack > article.lf-panel').getByRole('button')).toHaveCount(0);
+      await expect(page.getByText('この候補は別の登録で受け取り予定です。', {exact:true})).toBeVisible();
+      await menu.getByRole('button', {name:'紛失した物', exact:true}).click();
       page.once('dialog', confirm => confirm.accept());
       await pending.getByRole('button', {name:'受け取りをキャンセル'}).click();
       await expect(cards.locator('.lf-badge')).toHaveText(['候補あり', '候補あり']);
@@ -75,6 +78,32 @@ for (const width of [390, 1200]) {
       await page.screenshot({path:`temp/screenshots/private-claim-${entry}-${width}.png`, fullPage:true});
     });
   }
+}
+
+for (const width of [390, 1200]) {
+  test(`未申込の非公開候補が終了しても紛失登録と通知履歴は残る（${width}px）`, async ({page}) => {
+    await page.setViewportSize({width,height:900});
+    await seedInvitations(page);
+    await page.evaluate(() => {
+      const key='lost-found-no-qr-test-harness-v1';
+      const db=JSON.parse(localStorage.getItem(key)!);
+      db.notices.forEach((row: {value: {unavailable?: boolean}}) => {row.value.unavailable=true;});
+      localStorage.setItem(key,JSON.stringify(db));
+    });
+    await page.reload();
+    const menu=page.getByRole('navigation',{name:'学生メニュー'});
+    await menu.getByRole('button',{name:'紛失した物',exact:true}).click();
+    await expect(page.locator('.lf-record-card')).toHaveCount(2);
+    await expect(page.locator('.lf-record-card .lf-badge')).toHaveText(['探し中','探し中']);
+    await expect(page.getByRole('button',{name:'案内を確認'})).toHaveCount(0);
+    await expect(page.getByRole('button',{name:'編集',exact:true})).toHaveCount(2);
+    await menu.getByRole('button',{name:'お知らせ',exact:true}).click();
+    await expect(page.locator('.lf-stack > article.lf-panel')).toHaveCount(2);
+    await expect(page.getByText('この候補は現在受け取りできません。',{exact:true})).toHaveCount(2);
+    await expect(page.getByRole('button',{name:'候補を確認'})).toHaveCount(0);
+    await expect(page.locator('body')).not.toContainText('非公開の原本');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!).claims.length)).toBe(0);
+  });
 }
 
 test('削除済み申告の非公開通知は品名を推測せず申し込みを許可しない', async ({page}) => {

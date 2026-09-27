@@ -23,6 +23,7 @@ function requestCandidates(data: Snapshot, request: Request): LostCandidate[] {
   const notices = data.notices.filter(notice => notice.requestId === request.id)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id, undefined, {numeric: true}));
   for (const notice of notices) {
+    if (notice.unavailable) continue;
     if (candidates.has(notice.itemId)) continue;
     if (notice.kind === 'VALUABLE') {
       if (data.claims.some(claim => claim.itemId === notice.itemId && claim.status === 'UNAVAILABLE')) continue;

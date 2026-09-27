@@ -455,6 +455,48 @@ for(const route of ['public','private','walkin','interrupted']) {
     assert.equal(lostRecords(await second.load())[0].status,'受け取り予定');
   }
 }
+// An invitation with no application still expires. Never manufacture a claim
+// or resolve this student's loss report just to communicate item availability.
+for(const ending of ['return','transfer']) {
+  storage.clear();
+  const notified=new StudentService(new DemoRepository({...DEMO_STUDENT}));
+  const counter=new WorkflowService(new DemoRepository({...DEMO_STAFF}));
+  await notified.saveRequest({...emptyCriteria(),parent:'P01',category:'P01_WALLET'},'自分の財布');
+  const request=(await notified.load()).requests[0];
+  await counter.notify('4',request.id);
+  assert.equal(lostRecords(await notified.load())[0].status,'候補あり');
+  if(ending==='return') await counter.returnItem('4','s260002@stu.kobe-u.ac.jp','',true);
+  else await counter.transferItems(['4'],'中央窓口',true);
+  const ended=await notified.load();
+  assert.equal(ended.claims.length,0,'未申込の人の申出を勝手に作らない');
+  assert.equal(ended.requests[0].status,'ACTIVE');
+  assert.equal(ended.notices.length,1,'通知履歴を削除しない');
+  assert.equal(ended.notices[0].unavailable,true);
+  assert.equal(lostRecords(ended)[0].status,'探し中');
+  await assert.rejects(()=>notified.createClaim('4','',request.id),/現在申し出できません/);
+  if(ending==='return') {
+    await counter.correctReturn('4','現物を渡す前に訂正');
+    assert.equal(lostRecords(await notified.load())[0].status,'探し中','訂正だけでは未申込の案内を復活させない');
+    await assert.rejects(()=>notified.createClaim('4','',request.id),/現在申し出できません/);
+    await counter.notify('4',request.id);
+    assert.equal((await notified.load()).notices.length,1,'再案内は履歴を重複作成しない');
+    assert.equal(lostRecords(await notified.load())[0].status,'候補あり');
+    await notified.createClaim('4','',request.id);
+    assert.equal(lostRecords(await notified.load())[0].status,'受け取り予定');
+  }
+}
+const endedNoticeReader=new SharePointRepository({get:async()=>({ok:true,status:200,text:async()=>JSON.stringify({value:[{Id:99,AuthorId:'staff-1',NotificationKey:'VALUABLE:4:1:81:',RecipientUserId:'1',RecipientEmail:DEMO_STUDENT.email,ItemId:'4',RequestId:'81',ClaimId:'',NoticeKind:'VALUABLE',ItemTitle:'窓口からのお知らせ',StorageWindow:'農学部事務室',Message:'案内',Created:'2026-09-27T00:00:00Z',CandidateUnavailable:true}]})})} as any,'https://example.invalid',DEMO_STUDENT);
+assert.equal((await endedNoticeReader.list('notices'))[0].value.unavailable,true,'本番APIで候補終了を読み取る');
+for(const flowName of ['PowerApps_即時公開同期','PowerApps_返却記録の反映']) {
+  const actions=JSON.parse(readFileSync(`deployment/flows/${flowName}.json`,'utf8')).properties.definition.actions;
+  const candidates=actions.CandidateItemEnded.actions;
+  assert.match(candidates.CandidateNotices.inputs.parameters.$filter,/ItemId eq.*NoticeKind eq 'VALUABLE'/);
+  assert(candidates.CandidateNotices.runtimeConfiguration.paginationPolicy.minimumItemCount>=5000);
+  const each=candidates.EachCandidateNotice.actions;
+  assert.match(each.CandidateStillEnded.expression,/CandidateCurrentItem.*返却済み.*移管済み/);
+  assert.deepEqual(each.CandidateStillEnded.actions.RetireCandidate_Body.inputs,{CandidateUnavailable:true});
+  assert.equal(each.CandidateStillEnded.actions.RetireCandidate.inputs.parameters['parameters/headers']['IF-MATCH'],"@body('CandidateCurrentNotice')?['odata.etag']");
+}
 const unavailableReader=new SharePointRepository({get:async()=>({ok:true,status:200,text:async()=>JSON.stringify({value:[{Id:99,AuthorId:DEMO_STUDENT.id,Author:{EMail:DEMO_STUDENT.email},ItemId:'1',RequestId:'1',ItemTitle:'長傘',StorageWindow:'農学部事務室',ClaimStatus:'UNAVAILABLE',Created:'2026-09-27T00:00:00Z'}]})})} as any,'https://example.invalid',DEMO_STUDENT);
 assert.equal((await unavailableReader.list('claims'))[0].value.status,'UNAVAILABLE','本番のAPIでも新しい終了状態を読み取る');
 assert.notEqual((await unavailableReader.list('claims'))[0].value.invalid,true);

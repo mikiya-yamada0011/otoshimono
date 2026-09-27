@@ -1,6 +1,7 @@
 // Generate reviewable Power Automate definitions. Nothing is published or sent by this script.
 import { readFile,mkdir,rm,writeFile } from 'node:fs/promises';
 import { finderReturnThanks, finderSubmissionHistory, FINDER_RETURN_SUBJECT, FINDER_RETURN_MESSAGE } from './finder-thanks.mjs';
+import { retireCandidates } from './candidate-availability.mjs';
 const config=JSON.parse(await readFile(process.argv[2] || 'deployment/site.example.json','utf8'));
 const out='deployment/flows';await mkdir(out,{recursive:true});
 const ref=key=>({apiId:`/providers/Microsoft.PowerApps/apis/${key}`,connectionName:key});
@@ -66,13 +67,16 @@ const publish=new Steps();
 publish.condition('Exists',"@greater(length(body('Projection')?['value']),0)",new Steps().http('UpdatePublic',path('LFPublicItems')+"(@{first(body('Projection')?['value'])?['Id']})",safe,{...merge,'IF-MATCH':"@first(body('Projection')?['value'])?['odata.etag']"}),new Steps().http('CreatePublic',path('LFPublicItems'),safe));
 const unpublish=new Steps().each('RemoveProjection',"@body('Projection')?['value']",new Steps().http('DeletePublic',path('LFPublicItems')+"(@{items('RemoveProjection')?['Id']})",{}, {'X-HTTP-Method':'DELETE','IF-MATCH':"@items('RemoveProjection')?['odata.etag']"}));
 projection.condition('Public',expr(isPublic),publish,unpublish);
+for(const [name,action] of Object.entries(retireCandidates(Steps,path,config).actions))projection.add(name,action);
 await rm(`${out}/公開情報同期.json`,{force:true});
 // Private invitation: validate the current item and request, then create exactly one recipient-scoped notice.
 const privateInvite=new Steps().http('Request',path('LFRequests')+"(@{triggerBody()?['number_1']})?$select=*,Author/EMail&$expand=Author")
  .http('PrivateRequestClaims',path('LFClaims')+"?$filter=RequestId eq '@{body('Request')?['Id']}' and AuthorId eq @{body('Request')?['AuthorId']} and (ClaimStatus eq 'PENDING' or ClaimStatus eq 'RETURNED')&$top=1");
 const privateValue=new Steps().compose('PrivateValue',{itemId:"@string(body('Item')?['Id'])",window:"@coalesce(body('Item')?['StorageWindow'],'')",key:"@concat('VALUABLE:',string(body('Item')?['Id']),':',string(body('Request')?['AuthorId']),':',string(body('Request')?['Id']),':')",owner:"@string(body('Request')?['AuthorId'])",email:"@toLower(body('Request')?['Author']?['EMail'])",requestId:"@string(body('Request')?['Id'])",claimId:'',kind:'VALUABLE',title:'窓口からのお知らせ',message:'登録した紛失申告に該当する可能性のある拾得物を保管しています。品物の詳細は公開していません。受取窓口で本人確認を受けてください。',createdAt:'@utcNow()'}).http('PrivateExisting',path('LFNotices')+"?$filter=Title eq '@{outputs('PrivateValue')?['key']}'&$top=1");
 const createPrivate=new Steps().http('PrivateCreate',path('LFNotices'),{Title:"@outputs('PrivateValue')?['key']",NotificationKey:"@outputs('PrivateValue')?['key']",RecipientUserId:"@int(outputs('PrivateValue')?['owner'])",RecipientEmail:"@outputs('PrivateValue')?['email']",ItemId:"@outputs('PrivateValue')?['itemId']",RequestId:"@outputs('PrivateValue')?['requestId']",ClaimId:'',NoticeKind:'VALUABLE',ItemTitle:"@outputs('PrivateValue')?['title']",StorageWindow:"@outputs('PrivateValue')?['window']",Message:"@outputs('PrivateValue')?['message']",NoticeCreatedAt:"@outputs('PrivateValue')?['createdAt']"});
-privateValue.condition('PrivateMissing',"@empty(body('PrivateExisting')?['value'])",createPrivate).http('PrivateRows',path('LFNotices')+"?$filter=Title eq '@{outputs('PrivateValue')?['key']}'&$top=1");
+privateValue.condition('PrivateMissing',"@empty(body('PrivateExisting')?['value'])",createPrivate,
+  new Steps().http('ReactivatePrivateNotice',path('LFNotices')+"(@{first(body('PrivateExisting')?['value'])?['Id']})",{CandidateUnavailable:false},{...merge,'IF-MATCH':"@first(body('PrivateExisting')?['value'])?['odata.etag']"}))
+  .http('PrivateRows',path('LFNotices')+"?$filter=Title eq '@{outputs('PrivateValue')?['key']}'&$top=1");
 if(config.grantNoticePermissions!==false) privateValue.http('PrivateReset',path('LFNotices')+"(@{first(body('PrivateRows')?['value'])?['Id']})/resetroleinheritance()",{}).http('PrivateBreak',path('LFNotices')+"(@{first(body('PrivateRows')?['value'])?['Id']})/breakroleinheritance(copyRoleAssignments=true,clearSubscopes=false)",{}).http('PrivateGrant',path('LFNotices')+"(@{first(body('PrivateRows')?['value'])?['Id']})/roleassignments/addroleassignment(principalid=@{outputs('PrivateValue')?['owner']},roledefid=1073741826)",{});
 privateValue.http('PrivateMailRows',path('LFMailOutbox')+"?$filter=Title eq '@{outputs('PrivateValue')?['key']}'&$top=1");
 const queuePrivateMail=new Steps().http('PrivateMail',path('LFMailOutbox'),{Title:"@outputs('PrivateValue')?['key']",NotificationKey:"@outputs('PrivateValue')?['key']",RecipientEmail:"@outputs('PrivateValue')?['email']",MailSubject:"@outputs('PrivateValue')?['title']",MailBody:`@concat(outputs('PrivateValue')?['message'],decodeUriComponent('%0A'),'受取窓口：',outputs('PrivateValue')?['window'],decodeUriComponent('%0A'),'${config.siteUrl}?lfNotice=',string(first(body('PrivateRows')?['value'])?['Id']))`,MailStatus:'PENDING',ErrorMessage:''});
