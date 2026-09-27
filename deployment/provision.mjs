@@ -14,7 +14,7 @@ try {
   if(!page) throw new Error('検証サイトで手動ログインを完了してください。');
   const result=await page.evaluate(async({config,schema,apply,schemaOnly,removeLegacyContent})=>{
     let digest='';
-    const report={mode:apply?'apply':'preview',lists:[],changes:[],migrations:[],currentUser:0};
+    const report={mode:apply?'apply':'preview',siteUrl:config.siteUrl,listIds:{},lists:[],changes:[],migrations:[],currentUser:0};
     const apiRoot=`${config.siteUrl}/_api/`;
     const request=async(path,body,headers={},allowMissing=false)=>{
       if(body!==undefined&&!digest){
@@ -69,12 +69,18 @@ try {
         if(apply)await request(path,{Indexed:true},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
       }
     };
-    const ensureUniqueTitle=async title=>{
+    const ensureTitleUniqueness=async(title,required)=>{
       const path=list(title)+"/fields/getbyinternalnameortitle('Title')";
       const existing=await request(path+'?$select=Indexed,EnforceUniqueValues,Required');
-      if(existing.Indexed&&existing.EnforceUniqueValues&&existing.Required)return;
-      report.changes.push(`${title}.Title を必須・一意に設定`);
-      if(apply)await request(path,{Indexed:true,EnforceUniqueValues:true,Required:true},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
+      if(required){
+        if(existing.Indexed&&existing.EnforceUniqueValues&&existing.Required)return;
+        report.changes.push(`${title}.Title を必須・一意に設定`);
+        if(apply)await request(path,{Indexed:true,EnforceUniqueValues:true,Required:true},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
+        return;
+      }
+      if(!existing.EnforceUniqueValues)return;
+      report.changes.push(`${title}.Title の一意制約を解除（本人項目だけの表示と併用するため）`);
+      if(apply)await request(path,{EnforceUniqueValues:false},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
     };
     const ensureDefaultView=async(title,fields=[])=>{
       const viewFields=await request(list(title)+'/defaultview/viewfields');
@@ -117,7 +123,8 @@ try {
       if(title==='LFRequests'){
         if(!value.criteria||typeof value.criteria!=='object'||Array.isArray(value.criteria))throw new Error('LFRequests.criteriaの旧データ形式が不正です。');
         const criteria=value.criteria;
-        return {ParentCategoryCode:text(criteria.parent),CategoryCode:text(criteria.category),Colors:colors(title,criteria.colors),CampusCode:text(criteria.campus),BuildingCode:text(criteria.building),LostFrom:date(title,'LostFrom',criteria.dateFrom),LostTo:date(title,'LostTo',criteria.dateTo),SearchQuery:text(criteria.query),Feature:text(value.feature),RequestStatus:text(value.status||'ACTIVE')};
+        if(criteria.campuses!==undefined&&(!Array.isArray(criteria.campuses)||criteria.campuses.some(code=>typeof code!=='string')))throw new Error('LFRequests.criteria.campusesの形式が不正です。');
+        return {ParentCategoryCode:text(criteria.parent),CategoryCode:text(criteria.category),Colors:colors(title,criteria.colors),CampusCode:criteria.campuses===undefined?text(criteria.campus):criteria.campuses.join(';'),BuildingCode:text(criteria.building),LostFrom:date(title,'LostFrom',criteria.dateFrom),LostTo:date(title,'LostTo',criteria.dateTo),SearchQuery:text(criteria.query),Feature:text(value.feature),RequestStatus:text(value.status||'ACTIVE')};
       }
       if(title==='LFClaims')return {ItemId:text(value.itemId),RequestId:text(value.requestId),Feature:text(value.feature),ItemTitle:text(value.title),StorageWindow:text(value.window),ClaimStatus:text(value.status||'PENDING')};
       if(title==='LFNotices')return {NotificationKey:text(value.key),RecipientUserId:ownerId(title,value.owner),RecipientEmail:text(value.email).toLowerCase(),ItemId:text(value.itemId),RequestId:text(value.requestId),ClaimId:text(value.claimId),NoticeKind:text(value.kind),ItemTitle:text(value.title),StorageWindow:text(value.window),Message:text(value.message),NoticeCreatedAt:dateTime(title,'NoticeCreatedAt',value.createdAt)};
@@ -196,15 +203,29 @@ try {
       report.lists.push({title,kind,permissions:old?.value?.map(role=>({id:role.PrincipalId,name:role.Member.Title,roles:role.RoleDefinitionBindings.map(definition=>definition.Name)}))||[]});
       if(!apply)return;
       await request(path+'/breakroleinheritance(copyRoleAssignments=true,clearSubscopes=false)',{});
-      const staff=new Set([report.currentUser,...config.staffPrincipalIds.map(Number)]);
+      const staff=new Set([report.currentUser,report.ownerGroup,...config.staffPrincipalIds.map(Number)]);
       for(const id of staff)await request(path+`/roleassignments/addroleassignment(principalid=${id},roledefid=1073741829)`,{});
       const all=await request(path+'/roleassignments?$select=PrincipalId');
       for(const role of all.value)if(!staff.has(role.PrincipalId))await request(path+`/roleassignments/getbyprincipalid(${role.PrincipalId})`,{}, {'X-HTTP-Method':'DELETE'});
-      if(kind!=='private')for(const id of config.studentPrincipalIds.map(Number))await request(path+`/roleassignments/addroleassignment(principalid=${id},roledefid=${kind==='own'?1073741827:1073741826})`,{});
-      await request(path,{ReadSecurity:kind==='own'?2:1,WriteSecurity:kind==='own'?2:1,EnableAttachments:false,EnableVersioning:true},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
+      let studentRole=kind==='own'?1073741827:1073741826;
+      if(kind==='submit'){
+        const rolePath="web/roledefinitions/getbyname('LF Submit Only')";
+        let role=await request(rolePath,undefined,{},true);
+        const readRole=await request('web/roledefinitions/getbyid(1073741826)?$select=BasePermissions');
+        const permissions={High:String(readRole.BasePermissions.High),Low:String(Number(readRole.BasePermissions.Low)|2)};
+        if(!role){
+          await request('web/roledefinitions',{Name:'LF Submit Only',Description:'自分の届け出の追加と閲覧。編集・削除・受付判断は不可。',BasePermissions:permissions});
+          role=await request(rolePath);
+        }
+        if(String(role.BasePermissions.High)!==permissions.High||String(role.BasePermissions.Low)!==permissions.Low)throw new Error('LF Submit Only の権限が追加・閲覧専用ではありません。管理者に確認してください。');
+        studentRole=role.Id;
+      }
+      if(kind!=='private')for(const id of config.studentPrincipalIds.map(Number))await request(path+`/roleassignments/addroleassignment(principalid=${id},roledefid=${studentRole})`,{});
+      await request(path,{ReadSecurity:['own','submit'].includes(kind)?2:1,WriteSecurity:['own','submit'].includes(kind)?2:1,EnableAttachments:false,EnableVersioning:true},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
     };
 
     report.currentUser=(await request('web/currentuser?$select=Id')).Id;
+    report.ownerGroup=(await request('web?$select=AssociatedOwnerGroup/Id&$expand=AssociatedOwnerGroup')).AssociatedOwnerGroup.Id;
     report.groups=(await request('web/sitegroups?$select=Id,Title')).value;
     const staffIds=(config.staffPrincipalIds||[]).map(Number);
     const studentIds=(config.studentPrincipalIds||[]).map(Number);
@@ -220,6 +241,7 @@ try {
         if(!apply)continue;
         await request('web/lists',{Title:title,BaseTemplate:100,Description:'落とし物システム QRなし版'});
       }
+      report.listIds[title]=(existing || await request(list(title)+'?$select=Id')).Id;
       available.push([title,spec]);
     }
 
@@ -237,13 +259,16 @@ try {
     }
     await applyMigrations(migrationPlans);
     for(const [title,spec] of available){
-      if(spec.uniqueTitle)await ensureUniqueTitle(title);
+      await ensureTitleUniqueness(title,Boolean(spec.uniqueTitle));
       await acl(title,spec.access);
     }
 
     for(const [name,type] of [['FinderEmail','Text'],['ClaimId','Text'],['RequestId','Text'],['InternalNote','Note'],['ReturnAudit','Note']])await ensureField(config.foundItemsList,{name,type});
+    await ensureField(config.foundItemsList,{name:'StudentSubmissionKey',type:'Text',indexed:true});
+    await ensureField(config.foundItemsList,{name:'FinderThanksQueued',type:'Boolean',indexed:true});
+    if(apply)await request(list(config.foundItemsList)+"/fields/getbyinternalnameortitle('StudentSubmissionKey')",{Indexed:true,EnforceUniqueValues:true},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
     const status=await request(list(config.foundItemsList)+"/fields/getbyinternalnameortitle('Status')?$select=TypeAsString,Choices");
-    if(apply&&status.TypeAsString==='Choice')await request(list(config.foundItemsList)+"/fields/getbyinternalnameortitle('Status')",{Choices:[...new Set([...(status.Choices||[]),'保管中','返却済み','移管済み','処分済み'])]},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
+    if(apply&&status.TypeAsString==='Choice')await request(list(config.foundItemsList)+"/fields/getbyinternalnameortitle('Status')",{Choices:[...new Set([...(status.Choices||[]).filter(choice=>choice!=='処分済み'),'保管中','返却済み','移管済み'])]},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
     await acl(config.foundItemsList,'private');
     return report;
   },{config,schema,apply,schemaOnly,removeLegacyContent});

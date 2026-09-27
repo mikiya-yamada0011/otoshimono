@@ -1,28 +1,26 @@
-import { CATEGORY_GROUPS } from '../found-items/utils/categories';
-import publicationPolicy from '../found-items/data/publication-policy.json';
+import { CATEGORY_GROUPS } from '../utils/categories';
+import { CAMPUSES } from '../utils/locations';
 export const COLORS = ['黒','白','灰','赤','ピンク','橙','黄','緑','青','紺','紫','茶','透明','金','銀','その他'];
 export const WINDOWS = ['農学部事務室','工学部事務室','理学部事務室','文学部事務室','図書館カウンター','その他'];
 export type Role = 'student' | 'staff';
-export type ItemStatus = '保管中' | '返却済み' | '移管済み' | '処分済み';
+export type ItemStatus = '保管中' | '返却済み' | '移管済み';
 export interface User { id: string; name: string; email: string; role: Role; }
 export interface Profile { id: string; email: string; window: string; }
-export interface Criteria { parent: string; category: string; colors: string[]; campus: string; building: string; dateFrom: string; dateTo: string; query: string; }
-export interface Item { id: string; parent: string; category: string; title: string; colors: string[]; campus: string; building: string; place: string; foundOn: string; window: string; feature: string; valuable: boolean; status: ItemStatus; createdAt: string; finderEmail?: string; internalNote?: string; recipientEmail?: string; returnedAt?: string; returnedBy?: string; claimId?: string; requestId?: string; audit?: {at:string;by:string;reason:string;recipient:string;returnedAt:string;requestId?:string}[]; etag?: string; }
-export interface Request { id: string; owner: string; email: string; criteria: Criteria; feature: string; valuable: boolean; status: 'ACTIVE'|'CANCELLED'|'RESOLVED'; createdAt: string; }
-export interface Claim { id: string; owner: string; email: string; itemId: string; requestId: string; feature: string; title: string; window: string; status: 'PENDING'|'CANCELLED'; createdAt: string; }
-export interface Notice { id: string; owner: string; email: string; itemId: string; requestId: string; claimId: string; title: string; window: string; message: string; kind: 'MATCH'|'VALUABLE'|'RETURN'|'FINDER'; createdAt: string; }
-export interface Thanks { id: string; claimId: string; message: string; createdAt: string; }
+export interface Criteria { parent: string; category: string; colors: string[]; campuses: string[]; building: string; dateFrom: string; dateTo: string; query: string; }
+export interface Item { id: string; parent: string; category: string; title: string; colors: string[]; campus: string; building: string; place: string; foundOn: string; window: string; feature: string; valuable: boolean; status: ItemStatus; createdAt: string; finderEmail?: string; studentSubmissionKey?: string; internalNote?: string; recipientEmail?: string; returnedAt?: string; returnedBy?: string; claimId?: string; requestId?: string; audit?: {at:string;by:string;reason:string;recipient:string;returnedAt:string;requestId?:string}[]; etag?: string; }
+export interface Request { id: string; owner: string; email: string; key?: string; criteria: Criteria; feature: string; valuable: boolean; status: 'ACTIVE'|'CANCELLED'|'RESOLVED'; createdAt: string; }
+export interface Claim { id: string; owner: string; email: string; itemId: string; requestId: string; feature: string; title: string; window: string; status: 'PENDING'|'CANCELLED'|'RETURNED'|'UNAVAILABLE'; createdAt: string; returnedAt: string; }
+export interface Notice { id: string; owner: string; email: string; itemId: string; requestId: string; claimId: string; title: string; window: string; message: string; kind: 'MATCH'|'VALUABLE'; createdAt: string; }
+export interface FoundSubmissionInput { parent: string; category: string; colors: string[]; campus: string; building: string; place: string; foundOn: string; feature: string; receiveReturnEmail: boolean; }
+export interface FoundSubmission extends FoundSubmissionInput { id: string; email: string; title: string; status: 'PENDING'|'PROCESSING'|'ACCEPTED'|'REJECTED'; reason: string; window: string; itemId: string; createdAt: string; itemStatus: ItemStatus | ''; returnedAt: string; }
 export interface Mail { id: string; email: string; subject: string; body: string; status: 'PENDING'|'PROCESSING'|'SENT'|'ERROR'; error?: string; }
-export interface Snapshot { warnings?: string[]; user: User; profile?: Profile; items: Item[]; requests: Request[]; claims: Claim[]; notices: Notice[]; thanks: Thanks[]; mail: Mail[]; }
-export interface ItemInput extends Omit<Item, 'id'|'status'|'createdAt'|'etag'> {}
-export const emptyCriteria = (): Criteria => ({parent:'',category:'',colors:[],campus:'',building:'',dateFrom:'',dateTo:'',query:''});
+export interface Snapshot { warnings?: string[]; user: User; profile?: Profile; items: Item[]; requests: Request[]; claims: Claim[]; notices: Notice[]; mail: Mail[]; }
+export interface ItemInput extends Omit<Item, 'id'|'status'|'createdAt'|'etag'|'studentSubmissionKey'> {}
+export const emptyCriteria = (): Criteria => ({parent:'',category:'',colors:[],campuses:[],building:'',dateFrom:'',dateTo:'',query:''});
 export const today = (): string => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 export function splitColors(value: unknown): string[] {
   const raw = Array.isArray(value) ? value : typeof value === 'string' ? value.split(/[;,、/|]+/) : [];
   return Array.from(new Set(raw.map(x => String(x).trim()).filter(Boolean)));
-}
-export function isValuable(parent: string, category = ''): boolean {
-  return publicationPolicy.privateParentCodes.includes(parent) || publicationPolicy.privateCategoryCodes.includes(category);
 }
 export function categoryName(parent: string, category: string): string {
   const group = CATEGORY_GROUPS.find(g => g.code === parent);
@@ -32,7 +30,7 @@ export function matches(item: Item, c: Criteria): boolean {
   if (c.parent && item.parent !== c.parent || c.category && item.category !== c.category) return false;
   if (c.colors.length && !c.colors.some(color => item.colors.includes(color))) return false;
   // 建物は参考情報。未入力や記憶違いで候補を除外しない。
-  if (c.campus && item.campus !== c.campus) return false;
+  if (c.campuses.length && !c.campuses.includes(item.campus)) return false;
   if (c.dateFrom && (!item.foundOn || item.foundOn < c.dateFrom) || c.dateTo && (!item.foundOn || item.foundOn > c.dateTo)) return false;
   const words = c.query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   return words.every(w => [item.title,item.feature,item.place,item.window,...item.colors].join(' ').toLocaleLowerCase().includes(w));
@@ -42,6 +40,7 @@ export function matchesRequest(item: Item, request: Request): boolean {
   return request.status === 'ACTIVE' && !item.valuable && item.status === '保管中' && matches(item, {...request.criteria, dateTo:''});
 }
 export function validateCriteria(c: Criteria): void {
+  if (!Array.isArray(c.campuses) || c.campuses.some(code => !CAMPUSES.some(campus => campus.code === code)) || new Set(c.campuses).size !== c.campuses.length) throw new Error('キャンパスの選択を確認してください。');
   if (c.dateFrom && c.dateTo && c.dateFrom > c.dateTo) throw new Error('日付の開始は終了以前にしてください。');
 }
 export function validateSchoolEmail(email: string, domains: string[]): string {
@@ -58,10 +57,11 @@ export function publicItem(item: Item): Item {
 export interface AppService {
   readonly domains: string[];
   load(): Promise<Snapshot>;
+  loadFoundSubmissions(): Promise<FoundSubmission[]>;
   saveProfile(profile: Omit<Profile,'id'>): Promise<void>;
   saveRequest(criteria: Criteria, feature: string, id?: string): Promise<void>;
   cancelRequest(id: string): Promise<void>;
   createClaim(itemId: string, feature: string, requestId?: string): Promise<void>;
   cancelClaim(id: string): Promise<void>;
-  saveThanks(claimId: string, message: string): Promise<void>;
+  submitFoundItem(input: FoundSubmissionInput): Promise<void>;
 }

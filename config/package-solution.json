@@ -3,7 +3,7 @@
   "solution": {
     "name": "lost-found-student-spfx-client-side-solution",
     "id": "eab38116-6de8-4092-b2e9-ccc31badc91f",
-    "version": "2.9.1.0",
+    "version": "2.12.19.0",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,
@@ -30,7 +30,7 @@
         "title": "落とし物システム Webパーツ",
         "description": "学生向けの検索・紛失届・返却申出を有効化する。",
         "id": "d964ccc5-6671-424a-8c44-2b594dc8cd05",
-        "version": "2.9.1.0"
+        "version": "2.12.19.0"
       }
     ]
   },

@@ -22,7 +22,7 @@
             "host": {
               "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
               "connectionName": "shared_sharepointonline",
-              "operationId": "GetOnNewItems"
+              "operationId": "GetOnUpdatedItems"
             },
             "parameters": {
               "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
@@ -64,9 +64,199 @@
           },
           "runAfter": {}
         },
+        "Projection": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "HttpRequest"
+            },
+            "parameters": {
+              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+              "parameters/method": "GET",
+              "parameters/uri": "_api/web/lists/getbytitle('LFPublicItems')/items?$filter=Title eq 'public:@{body('Item')?['Id']}'&$top=1",
+              "parameters/headers": {
+                "Accept": "application/json;odata=minimalmetadata",
+                "Content-Type": "application/json;odata=nometadata"
+              }
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runAfter": {
+            "Item": [
+              "Succeeded"
+            ]
+          }
+        },
+        "SyncPublicProjection": {
+          "type": "If",
+          "expression": "@and(equals(body('Item')?['Status'],'保管中'),equals(body('Item')?['IsPublic'],true),not(empty(body('Item')?['ParentCategoryCode'])))",
+          "actions": {
+            "ProjectionExists": {
+              "type": "If",
+              "expression": "@greater(length(body('Projection')?['value']),0)",
+              "actions": {
+                "UpdateProjection_Body": {
+                  "type": "Compose",
+                  "inputs": {
+                    "Title": "public:@{body('Item')?['Id']}",
+                    "SourceItemId": "@string(body('Item')?['Id'])",
+                    "ItemTitle": "@body('Item')?['Title']",
+                    "ParentCategoryCode": "@body('Item')?['ParentCategoryCode']",
+                    "CategoryCode": "@coalesce(body('Item')?['CategoryCode'],'')",
+                    "Colors": "@coalesce(body('Item')?['Color'],'')",
+                    "CampusCode": "@coalesce(body('Item')?['CampusCode'],'')",
+                    "BuildingCode": "@coalesce(body('Item')?['BuildingCode'],'')",
+                    "Place": "@coalesce(body('Item')?['Place'],'')",
+                    "FoundOn": "@body('Item')?['FoundOn']",
+                    "StorageWindow": "@coalesce(body('Item')?['StorageWindow'],'')",
+                    "Feature": "@coalesce(body('Item')?['Feature'],'')",
+                    "ItemStatus": "保管中",
+                    "SourceCreatedAt": "@body('Item')?['Created']"
+                  },
+                  "runAfter": {}
+                },
+                "UpdateProjection": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "POST",
+                      "parameters/uri": "_api/web/lists/getbytitle('LFPublicItems')/items(@{first(body('Projection')?['value'])?['Id']})",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata",
+                        "X-HTTP-Method": "MERGE",
+                        "IF-MATCH": "*"
+                      },
+                      "parameters/body": "@string(outputs('UpdateProjection_Body'))"
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {
+                    "UpdateProjection_Body": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "actions": {
+                  "CreateProjection_Body": {
+                    "type": "Compose",
+                    "inputs": {
+                      "Title": "public:@{body('Item')?['Id']}",
+                      "SourceItemId": "@string(body('Item')?['Id'])",
+                      "ItemTitle": "@body('Item')?['Title']",
+                      "ParentCategoryCode": "@body('Item')?['ParentCategoryCode']",
+                      "CategoryCode": "@coalesce(body('Item')?['CategoryCode'],'')",
+                      "Colors": "@coalesce(body('Item')?['Color'],'')",
+                      "CampusCode": "@coalesce(body('Item')?['CampusCode'],'')",
+                      "BuildingCode": "@coalesce(body('Item')?['BuildingCode'],'')",
+                      "Place": "@coalesce(body('Item')?['Place'],'')",
+                      "FoundOn": "@body('Item')?['FoundOn']",
+                      "StorageWindow": "@coalesce(body('Item')?['StorageWindow'],'')",
+                      "Feature": "@coalesce(body('Item')?['Feature'],'')",
+                      "ItemStatus": "保管中",
+                      "SourceCreatedAt": "@body('Item')?['Created']"
+                    },
+                    "runAfter": {}
+                  },
+                  "CreateProjection": {
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                      "host": {
+                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                        "connectionName": "shared_sharepointonline",
+                        "operationId": "HttpRequest"
+                      },
+                      "parameters": {
+                        "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                        "parameters/method": "POST",
+                        "parameters/uri": "_api/web/lists/getbytitle('LFPublicItems')/items",
+                        "parameters/headers": {
+                          "Accept": "application/json;odata=minimalmetadata",
+                          "Content-Type": "application/json;odata=nometadata"
+                        },
+                        "parameters/body": "@string(outputs('CreateProjection_Body'))"
+                      },
+                      "authentication": "@parameters('$authentication')"
+                    },
+                    "runAfter": {
+                      "CreateProjection_Body": [
+                        "Succeeded"
+                      ]
+                    }
+                  }
+                }
+              },
+              "runAfter": {}
+            }
+          },
+          "else": {
+            "actions": {
+              "RemoveProjection": {
+                "type": "Foreach",
+                "foreach": "@body('Projection')?['value']",
+                "actions": {
+                  "DeleteProjection_Body": {
+                    "type": "Compose",
+                    "inputs": {},
+                    "runAfter": {}
+                  },
+                  "DeleteProjection": {
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                      "host": {
+                        "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                        "connectionName": "shared_sharepointonline",
+                        "operationId": "HttpRequest"
+                      },
+                      "parameters": {
+                        "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                        "parameters/method": "POST",
+                        "parameters/uri": "_api/web/lists/getbytitle('LFPublicItems')/items(@{items('RemoveProjection')?['Id']})",
+                        "parameters/headers": {
+                          "Accept": "application/json;odata=minimalmetadata",
+                          "Content-Type": "application/json;odata=nometadata",
+                          "X-HTTP-Method": "DELETE",
+                          "IF-MATCH": "*"
+                        },
+                        "parameters/body": "@string(outputs('DeleteProjection_Body'))"
+                      },
+                      "authentication": "@parameters('$authentication')"
+                    },
+                    "runAfter": {
+                      "DeleteProjection_Body": [
+                        "Succeeded"
+                      ]
+                    }
+                  }
+                },
+                "runtimeConfiguration": {
+                  "concurrency": {
+                    "repetitions": 1
+                  }
+                },
+                "runAfter": {}
+              }
+            }
+          },
+          "runAfter": {
+            "Projection": [
+              "Succeeded"
+            ]
+          }
+        },
         "NormalStored": {
           "type": "If",
-          "expression": "@and(equals(body('Item')?['Status'],'保管中'),equals(body('Item')?['IsPublic'],true),not(empty(body('Item')?['ParentCategoryCode'])),not(contains(createArray('P01','P10','P11','P12'),body('Item')?['ParentCategoryCode'])),not(contains(createArray('P02_SMARTPHONE','P02_LAPTOP','P02_TABLET','P02_STORAGE_MEDIA'),body('Item')?['CategoryCode'])))",
+          "expression": "@and(equals(body('Item')?['Status'],'保管中'),equals(body('Item')?['IsPublic'],true),not(empty(body('Item')?['ParentCategoryCode'])))",
           "actions": {
             "FoundDate": {
               "type": "Compose",
@@ -99,7 +289,7 @@
               },
               "runtimeConfiguration": {
                 "paginationPolicy": {
-                  "minimumItemCount": 100000
+                  "minimumItemCount": 5000
                 }
               },
               "runAfter": {
@@ -117,6 +307,15 @@
                   "inputs": "@if(empty(items('EachRequest')?['Colors']),json('[]'),split(items('EachRequest')?['Colors'],';'))",
                   "runAfter": {}
                 },
+                "RequestCampuses": {
+                  "type": "Compose",
+                  "inputs": "@if(empty(items('EachRequest')?['CampusCode']),json('[]'),split(items('EachRequest')?['CampusCode'],';'))",
+                  "runAfter": {
+                    "RequestColors": [
+                      "Succeeded"
+                    ]
+                  }
+                },
                 "UnmatchedWords": {
                   "type": "Query",
                   "inputs": {
@@ -124,14 +323,14 @@
                     "where": "@and(not(empty(item())),not(contains(toLower(concat(coalesce(body('Item')?['Title'],''),' ',coalesce(body('Item')?['Feature'],''),' ',coalesce(body('Item')?['Place'],''),' ',coalesce(body('Item')?['StorageWindow'],''),' ',join(outputs('Colors'),' '))),item())))"
                   },
                   "runAfter": {
-                    "RequestColors": [
+                    "RequestCampuses": [
                       "Succeeded"
                     ]
                   }
                 },
                 "Matches": {
                   "type": "If",
-                  "expression": "@and(empty(body('UnmatchedWords')),equals(items('EachRequest')?['RequestStatus'],'ACTIVE'),lessOrEquals(ticks(items('EachRequest')?['Created']),ticks(body('Item')?['Created'])),equals(items('EachRequest')?['ParentCategoryCode'],body('Item')?['ParentCategoryCode']),or(empty(items('EachRequest')?['CategoryCode']),equals(items('EachRequest')?['CategoryCode'],body('Item')?['CategoryCode'])),or(empty(outputs('RequestColors')),greater(length(intersection(outputs('RequestColors'),outputs('Colors'))),0)),or(empty(items('EachRequest')?['CampusCode']),equals(items('EachRequest')?['CampusCode'],body('Item')?['CampusCode'])),or(empty(items('EachRequest')?['LostFrom']),greaterOrEquals(outputs('FoundDate'),formatDateTime(items('EachRequest')?['LostFrom'],'yyyy-MM-dd'))))",
+                  "expression": "@and(empty(body('UnmatchedWords')),equals(items('EachRequest')?['RequestStatus'],'ACTIVE'),lessOrEquals(ticks(items('EachRequest')?['Created']),ticks(body('Item')?['Created'])),equals(items('EachRequest')?['ParentCategoryCode'],body('Item')?['ParentCategoryCode']),or(empty(items('EachRequest')?['CategoryCode']),equals(items('EachRequest')?['CategoryCode'],body('Item')?['CategoryCode'])),or(empty(outputs('RequestColors')),greater(length(intersection(outputs('RequestColors'),outputs('Colors'))),0)),or(empty(outputs('RequestCampuses')),contains(outputs('RequestCampuses'),coalesce(body('Item')?['CampusCode'],''))),or(empty(items('EachRequest')?['LostFrom']),greaterOrEquals(outputs('FoundDate'),formatDateTime(items('EachRequest')?['LostFrom'],'yyyy-MM-dd'))))",
                   "actions": {
                     "TrustedRequest": {
                       "type": "OpenApiConnection",
@@ -154,9 +353,34 @@
                       },
                       "runAfter": {}
                     },
+                    "RequestClaims": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "GET",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFClaims')/items?$filter=RequestId eq '@{body('TrustedRequest')?['Id']}' and AuthorId eq @{body('TrustedRequest')?['AuthorId']} and (ClaimStatus eq 'PENDING' or ClaimStatus eq 'RETURNED')&$top=1",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata"
+                          }
+                        },
+                        "authentication": "@parameters('$authentication')"
+                      },
+                      "runAfter": {
+                        "TrustedRequest": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
                     "Student": {
                       "type": "If",
-                      "expression": "@and(contains(createArray('stu.kobe-u.ac.jp'),last(split(toLower(body('TrustedRequest')?['Author']?['EMail']),'@'))),or(contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'0'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'1'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'2'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'3'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'4'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'5'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'6'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'7'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'8'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'9')))",
+                      "expression": "@and(equals(body('TrustedRequest')?['RequestStatus'],'ACTIVE'),empty(body('RequestClaims')?['value']),and(contains(createArray('stu.kobe-u.ac.jp'),last(split(toLower(body('TrustedRequest')?['Author']?['EMail']),'@'))),or(contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'0'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'1'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'2'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'3'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'4'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'5'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'6'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'7'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'8'),contains(first(split(body('TrustedRequest')?['Author']?['EMail'],'@')),'9'))))",
                       "actions": {
                         "MatchValue": {
                           "type": "Compose",
@@ -287,10 +511,45 @@
                           "type": "If",
                           "expression": "@not(empty(outputs('MatchValue')?['owner']))",
                           "actions": {
-                            "MatchBreak_Body": {
+                            "MatchReset_Body": {
                               "type": "Compose",
                               "inputs": {},
                               "runAfter": {}
+                            },
+                            "MatchReset": {
+                              "type": "OpenApiConnection",
+                              "inputs": {
+                                "host": {
+                                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                  "connectionName": "shared_sharepointonline",
+                                  "operationId": "HttpRequest"
+                                },
+                                "parameters": {
+                                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                  "parameters/method": "POST",
+                                  "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{first(body('MatchRows')?['value'])?['Id']})/resetroleinheritance()",
+                                  "parameters/headers": {
+                                    "Accept": "application/json;odata=minimalmetadata",
+                                    "Content-Type": "application/json;odata=nometadata"
+                                  },
+                                  "parameters/body": "@string(outputs('MatchReset_Body'))"
+                                },
+                                "authentication": "@parameters('$authentication')"
+                              },
+                              "runAfter": {
+                                "MatchReset_Body": [
+                                  "Succeeded"
+                                ]
+                              }
+                            },
+                            "MatchBreak_Body": {
+                              "type": "Compose",
+                              "inputs": {},
+                              "runAfter": {
+                                "MatchReset": [
+                                  "Succeeded"
+                                ]
+                              }
                             },
                             "MatchBreak": {
                               "type": "OpenApiConnection",
@@ -446,7 +705,7 @@
                         "actions": {}
                       },
                       "runAfter": {
-                        "TrustedRequest": [
+                        "RequestClaims": [
                           "Succeeded"
                         ]
                       }
@@ -478,7 +737,7 @@
             "actions": {}
           },
           "runAfter": {
-            "Item": [
+            "SyncPublicProjection": [
               "Succeeded"
             ]
           }

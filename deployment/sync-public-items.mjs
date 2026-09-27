@@ -2,14 +2,13 @@ import { chromium } from '@playwright/test';
 import { readFile, writeFile } from 'node:fs/promises';
 
 const config=JSON.parse(await readFile(process.argv[2] || 'deployment/site.example.json','utf8'));
-const policy=JSON.parse(await readFile(new URL('../src/webparts/lostFoundStudent/found-items/data/publication-policy.json',import.meta.url),'utf8'));
 const apply=process.argv.includes('--apply');
 const browser=await chromium.connectOverCDP(process.env.CDP_URL || 'http://127.0.0.1:9222');
 
 try {
   const page=browser.contexts().flatMap(context=>context.pages()).find(candidate=>candidate.url().startsWith(config.siteUrl));
   if(!page)throw new Error('対象SharePointサイトで手動ログインを完了してください。');
-  const report=await page.evaluate(async({config,policy,apply})=>{
+  const report=await page.evaluate(async({config,apply})=>{
     let digest='';
     const apiRoot=`${config.siteUrl}/_api/`;
     const list=title=>`web/lists/getbytitle('${title.replaceAll("'","''")}')`;
@@ -41,8 +40,6 @@ try {
       if(status(item)!=='保管中')return `状態が「${status(item)}」`;
       if(item.IsPublic!==true)return '公開可に設定されていない';
       if(!value(item,'ParentCategoryCode'))return '種類が未設定';
-      if(policy.privateParentCodes.includes(value(item,'ParentCategoryCode')))return '非公開対象の種類';
-      if(policy.privateCategoryCodes.includes(value(item,'CategoryCode')))return '非公開対象の細かい種類';
       return '';
     };
     const publicColumns=item=>({
@@ -105,7 +102,7 @@ try {
     const after=await allPages(`${list('LFPublicItems')}/items?$top=5000&$select=Id,SourceItemId,ItemStatus`);
     if(after.length!==eligible.length)throw new Error(`同期後の件数が一致しません（期待 ${eligible.length}件、実際 ${after.length}件）。`);
     return {...result,publicCountAfter:after.length};
-  },{config,policy,apply});
+  },{config,apply});
   await writeFile('deployment/last-public-sync-report.json',JSON.stringify(report,null,2)+'\n');
   console.log(JSON.stringify(report,null,2));
   if(!apply)console.log('内容を確認後、--applyを付けて実行するとLFPublicItemsへ反映します。');

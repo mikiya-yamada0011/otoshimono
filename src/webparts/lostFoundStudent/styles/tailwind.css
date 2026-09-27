@@ -1,4 +1,9 @@
-:global {
+/* SharePoint の既存UIをリセットしないため Preflight は読み込まない。 */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@source "../";
+
+@layer components {
 .lf-app {
   --ink:#242424; --muted:#616161; --green:#216653; --line:#e1dfdd; --wash:#fff; --paper:#fff; --surface:#f7f7f7; --surface-hover:#efefef;
   color:var(--ink); background:var(--wash); font-family:'Segoe UI','Noto Sans JP',Meiryo,sans-serif; font-size:14px; line-height:1.7; min-height:800px; position:relative;
@@ -23,24 +28,24 @@
   .lf-primary:hover:not(:disabled) {background:#184c3e;color:white;}
   .lf-icon-button {display:inline-flex;align-items:center;justify-content:center;width:44px;padding:0;font-size:24px;border-color:transparent;background:transparent;}
   .lf-text-button {border:0;background:transparent;color:var(--green);text-decoration:underline;}
-  .lf-brand {display:flex;align-items:center;gap:12px;white-space:nowrap;}
+  .lf-brand {@apply flex items-center gap-3 whitespace-nowrap;}
   .lf-brand strong {font-size:18px;line-height:1.25;letter-spacing:-.5px;}
   .lf-brand small {display:block;font-size:10px;letter-spacing:1.7px;margin-top:4px;color:var(--muted);}
   .lf-logo {width:38px;height:38px;display:grid;place-items:center;background:var(--green);color:#fff;border-radius:12px 12px 12px 3px;font-size:25px;font-family:Georgia,serif;font-style:italic;}
-  .lf-topbar {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 36px;background:var(--paper);border-bottom:1px solid var(--line);min-height:80px;}
-  .lf-top-actions {display:flex;gap:8px;align-items:center;margin-left:auto;}
+  .lf-topbar {@apply flex items-center justify-between gap-3; padding:20px 36px;background:var(--paper);border-bottom:1px solid var(--line);min-height:80px;}
+  .lf-top-actions {@apply ml-auto flex items-center gap-2;}
   .lf-breadcrumb {font-size:12px;color:var(--muted);}
-  .lf-page-title {display:flex;align-items:center;justify-content:space-between;margin-bottom:26px;gap:12px;}
+  .lf-page-actions {display:flex;justify-content:flex-end;margin-bottom:15px;}
   .lf-eyebrow {display:block;font-size:10px;font-weight:700;letter-spacing:2.2px;color:var(--muted);margin-bottom:8px;}
   .lf-muted,.lf-hint {color:var(--muted);font-size:13px;}
   .lf-panel {padding:24px;border:0;border-radius:8px;background:var(--surface);margin-bottom:18px;overflow-wrap:anywhere;}
-  .lf-form {display:flex;flex-direction:column;gap:24px;max-width:850px;}
+  .lf-form {@apply flex flex-col gap-6;max-width:850px;}
   .lf-form p {margin:0;}
   .lf-form>.lf-primary {align-self:flex-start;min-width:180px;}
-  .lf-field {display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:600;min-width:0;}
+  .lf-field {@apply flex min-w-0 flex-col;font-size:13px;font-weight:600;gap:7px;}
   .lf-field small {color:var(--muted);line-height:1.6;}
   .lf-fields {display:flex;flex-direction:column;gap:24px;}
-  .lf-grid2 {display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .lf-grid2 {@apply grid grid-cols-2;gap:18px;}
   .lf-colors {border:0;padding:0;margin:0;}
   .lf-colors legend {font-size:13px;font-weight:600;margin-bottom:10px;}
   .lf-colors small {color:var(--muted);margin-left:8px;}
@@ -74,7 +79,7 @@
   .lf-section-heading h2 {font-size:17px;margin:0;}
   .lf-section-heading h2 span {font-size:13px;color:var(--muted);margin-left:8px;}
   .lf-section-heading>span {font-size:11px;color:var(--muted);}
-  .lf-item-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:16px;}
+  .lf-item-grid {@apply grid gap-4;grid-template-columns:repeat(auto-fill,minmax(285px,1fr));}
   .lf-item-card {display:flex;position:relative;align-items:stretch;text-align:left;padding:0;overflow:hidden;border:0;border-radius:8px;background:var(--surface);}
   .lf-item-card:hover:not(:disabled) {background:var(--surface-hover);}
   .lf-item-card.lf-static-card:disabled {opacity:1;cursor:default;}
@@ -100,10 +105,10 @@
   .lf-empty h3 {font-weight:500;font-size:16px;}
   .lf-valuable {padding:30px;}
   .lf-valuable h3 {margin-top:18px;}
-  .lf-stack {display:flex;flex-direction:column;gap:14px;}
+  .lf-stack {@apply flex flex-col;gap:14px;}
   .lf-stack>.lf-panel {margin:0;}
   .lf-stack+.lf-primary {margin-top:20px;}
-  .lf-actions {display:flex;gap:10px;flex-wrap:wrap;margin-top:15px;}
+  .lf-actions {@apply flex flex-wrap;gap:10px;margin-top:15px;}
   .lf-detail {margin:20px 0;}
   .lf-detail>div {display:grid;grid-template-columns:95px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);}
   .lf-detail dt {font-size:12px;color:var(--muted);}
@@ -113,13 +118,11 @@
   .lf-request-details dt {font-size:11px;color:var(--muted);}
   .lf-request-details dd {margin:2px 0 0;overflow-wrap:anywhere;white-space:pre-wrap;}
   .lf-quote {padding:16px;background:#f5f5f5;border-left:3px solid var(--green);border-radius:0;white-space:pre-wrap;overflow-wrap:anywhere;font-weight:400;}
-  .lf-thanks {margin:0;}
-  .lf-thanks p {font-size:16px;line-height:1.9;white-space:pre-wrap;}
-  .lf-thanks footer {font-size:11px;color:var(--muted);}
   .lf-overlay {position:absolute;inset:0;background:#132d2a88;z-index:10000;display:flex;align-items:center;justify-content:center;padding:24px;}
   .lf-dialog {background:var(--paper);width:720px;max-width:100%;max-height:calc(100% - 48px);overflow-y:auto;border:0;border-radius:8px;padding:26px 30px;}
   .lf-dialog>header {display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
   .lf-dialog>header h2 {margin:0;font-size:20px;}
+  .lf-dialog>header.lf-dialog-close-only {justify-content:flex-end;margin-bottom:8px;}
   .lf-dialog .lf-primary {margin-top:8px;}
   .lf-toolbar {display:flex;align-items:center;gap:12px;margin-bottom:22px;}
   .lf-toolbar input {flex:1;} .lf-toolbar select {width:180px;}
@@ -163,7 +166,6 @@
     min-height:100dvh;
     main {padding:22px 16px 28px;}
     h1 {font-size:22px;}
-    .lf-page-title {margin-bottom:20px;}
     .lf-topbar {padding:13px 16px;}
     .lf-brand strong {font-size:16px;}
     .lf-logo {width:33px;height:33px;font-size:22px;}
@@ -210,11 +212,8 @@
   .lf-card-footer span {display:block;white-space:normal;overflow-wrap:anywhere;}
   .lf-card-footer span+span {margin-top:8px;}
   .lf-sidebar-bottom {overflow-wrap:anywhere;}
-  .lf-tracking-tabs {display:flex;gap:8px;margin-bottom:12px;}
-  .lf-tracking-tabs button {flex:1;}
-  .lf-tracking-tabs button[aria-current=page] {background:var(--green);color:white;}
   .lf-toolbar select {max-width:100%;}
-  @media(max-width:600px){.lf-compact-toolbar h1{font-size:19px;}.lf-tracking-tabs button{font-size:13px;}}
+  @media(max-width:600px){.lf-compact-toolbar h1{font-size:19px;}}
 }
 
 .lf-app {
@@ -246,5 +245,127 @@
   .lf-inventory-filters select {font-size:14px;min-height:38px;padding:6px 10px;}
   .lf-item-card * {cursor:pointer;}
   @media(max-width:1000px) {.lf-inventory-filters {grid-template-columns:repeat(3,minmax(0,1fr));}}
+}
+
+.lf-app {
+  .lf-registration-categories,.lf-registration-locations {display:grid;gap:10px;}
+  .lf-registration-categories fieldset,.lf-registration-locations fieldset,.lf-registration-colors {min-width:0;margin:0;padding:0;border:0;}
+  .lf-registration-categories legend,.lf-registration-locations legend,.lf-registration-colors legend {margin-bottom:6px;font-size:13px;font-weight:600;}
+  .lf-category-choices {display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;}
+  .lf-category-choices label {position:relative;min-width:0;max-width:100%;cursor:pointer;}
+  .lf-category-choices input {position:absolute;inset:0;width:100%;height:100%;opacity:0;z-index:1;margin:0;cursor:pointer;}
+  .lf-category-choices span {display:flex;align-items:center;justify-content:center;width:max-content;min-width:64px;max-width:100%;min-height:32px;padding:2px 8px;border:1px solid #a6b9af;border-radius:16px;background:#fff;color:#236855;text-align:center;font-size:12px;line-height:13px;font-weight:400;white-space:nowrap;}
+  .lf-category-choices label:hover span {background:#ecf1e8;}
+  .lf-category-choices input:checked+span {background:#236855;color:#fff;font-weight:600;}
+  .lf-category-choices input:focus-visible+span {outline:2px solid #236855;outline-offset:2px;}
+  .lf-registration-colors .lf-category-choices span {min-width:40px;}
+  .lf-conditions>fieldset {min-width:0;margin:0;padding:0;border:0;}
+  .lf-conditions>fieldset legend {margin-bottom:6px;font-size:13px;font-weight:600;}
+  .lf-conditions .lf-category-choices {gap:6px;}
+  .lf-conditions .lf-category-choices input {min-height:0;}
+  .lf-criteria-dates {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;width:100%;max-width:300px;}
+  .lf-date-input {width:100%;max-width:144px;}
+  @media(max-width:360px) {.lf-criteria-dates {grid-template-columns:minmax(0,1fr);}}
+  .lf-criteria-colors .lf-category-choices span {min-width:40px;}
+  .lf-building-selected {display:block;width:100%;min-width:0;min-height:32px;margin:0;padding:2px 12px;border:1px solid #dae3da;border-radius:5px;background:#fff;color:#236855;text-align:left;overflow-wrap:anywhere;font-size:12px;line-height:13px;font-weight:400;cursor:pointer;}
+  .lf-building-selected:hover {background:#ecf1e8;}
+  .lf-building-selected:focus-visible {outline:2px solid #236855;outline-offset:2px;}
+  .lf-registration-locations input[type=search] {height:32px;min-height:32px;padding:2px 12px;font-size:12px;}
+  .lf-registration-locations .lf-building-search {cursor:text;background:#fff;font-weight:400;}
+  .lf-building-search::placeholder {color:#68716d;opacity:1;}
+  .lf-building-choices {max-height:320px;overflow-y:auto;overscroll-behavior:contain;border:1px solid #cdd3cf;margin-top:6px;background:#fff;}
+  .lf-building-choices label {display:block;position:relative;cursor:pointer;border-bottom:1px solid #e6e8e7;}
+  .lf-building-choices input {position:absolute;inset:0;width:100%;height:100%;opacity:0;z-index:1;margin:0;cursor:pointer;}
+  .lf-building-choices span {display:flex;align-items:center;min-height:39px;padding:2px 12px;font-size:12px;line-height:1.3;white-space:normal;overflow-wrap:anywhere;font-weight:400;}
+  .lf-building-choices label:hover span {background:#ecf1e8;}
+  .lf-building-choices input:checked+span {background:#236855;color:#fff;font-weight:600;}
+  .lf-building-choices input:focus-visible+span {outline:2px solid #236855;outline-offset:-2px;}
+  .lf-registration-locations .lf-building-empty {margin:6px 0 0;padding:0;font-size:12px;line-height:1.4;}
+}
+
+.lf-app.lf-student {
+  /* Student-local: white outlined cards, neutral gray input surfaces.
+     Staff/native app colors are unchanged. */
+  --ink:#333333; --muted:#666666; --line:#cccccc;
+  --wash:#ffffff; --paper:#ffffff; --surface:#f5f5f5; --surface-hover:#f0f0f0;
+  .lf-item-card,.lf-panel,.lf-search-empty {background:var(--paper);border:1px solid var(--line);box-shadow:none;}
+  .lf-item-card:hover:not(:disabled) {background:var(--paper);border-color:var(--green);}
+  input[readonly] {background:var(--surface-hover);}
+  .lf-loading {background:var(--surface);color:var(--muted);}
+  .lf-chevron {color:var(--muted);}
+  .lf-overlay {background:rgba(0,0,0,.4);}
+  .lf-search-dialog {padding-top:16px;}
+  .lf-search-dialog>header {margin-bottom:8px;}
+  .lf-search-dialog>header h2 {line-height:1.4;}
+  .lf-search-dialog .lf-form {gap:16px;}
+  .lf-found-submissions-actions {margin-bottom:16px;}
+  .lf-found-form {gap:16px;}
+  .lf-found-form .lf-field {gap:4px;}
+  .lf-found-form .lf-field input {min-height:32px;padding:2px 12px;font-size:13px;font-weight:400;}
+  .lf-found-form textarea {min-height:64px;padding:6px 12px;font-size:13px;font-weight:400;}
+  .lf-date-input input[type=date] {height:40px;min-height:40px;padding:6px 10px;font-size:14px;font-weight:400;line-height:1.4;}
+  @media(max-width:520px) {
+    /* Inset strokes retain the existing layout/tap area and render fractional
+       widths even in browsers that round a 0.5px CSS border to 1px. */
+    .lf-item-card,.lf-panel,.lf-search-empty,.lf-category-choices span,
+    .lf-building-selected,.lf-building-choices,
+    button:not(.lf-primary):not(.lf-text-button):not(.lf-icon-button):not(.lf-bottom-nav button) {
+      border-color:transparent;
+      box-shadow:inset 0 0 0 .5px var(--lf-frame-color,var(--line));
+    }
+    button:hover:not(:disabled) {--lf-frame-color:var(--green);}
+    .lf-colors button[aria-pressed=true] {--lf-frame-color:var(--green);}
+    .lf-category-choices input:checked+span {--lf-frame-color:#236855;}
+    .lf-notification-prompt button {--lf-frame-color:var(--green);}
+    .lf-found-form .lf-category-choices span {min-height:40px;border-radius:20px;line-height:1.4;}
+    .lf-found-form .lf-registration-colors .lf-category-choices label {padding:4px 0;}
+    .lf-found-form .lf-registration-colors .lf-category-choices span {min-height:32px;border-radius:16px;}
+    .lf-conditions .lf-category-choices span {min-height:40px;border-radius:20px;line-height:1.4;}
+    .lf-criteria-colors .lf-category-choices label {padding:4px 0;}
+    .lf-criteria-colors .lf-category-choices span {min-height:32px;border-radius:16px;}
+    .lf-found-form .lf-field input {min-height:44px;height:44px;font-size:16px;}
+    .lf-date-input input[type=date] {height:44px;min-height:44px;font-size:16px;}
+    .lf-found-form textarea {font-size:16px;}
+    .lf-found-form .lf-building-selected {min-height:44px;line-height:1.4;}
+    .lf-found-form .lf-building-search {height:44px;font-size:16px;}
+    .lf-found-form .lf-building-choices {max-height:min(320px,40dvh);}
+  }
+  .lf-record-list {gap:10px;}
+  .lf-record-card {padding:15px 18px;}
+  .lf-record-header {display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;}
+  .lf-record-header h3 {min-width:0;margin:0;font-size:16px;line-height:1.45;}
+  .lf-record-header .lf-badge {flex:none;}
+  .lf-record-summary {min-height:44px;}
+  .lf-record-summary .lf-record-line {margin-bottom:4px;}
+  .lf-record-card .lf-request-details {grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 18px;margin:0 0 10px;}
+  .lf-record-card .lf-request-details dt {font-size:10px;line-height:1.35;}
+  .lf-record-card .lf-request-details dd {margin-top:0;font-size:12px;line-height:1.45;}
+  .lf-record-card .lf-request-feature {grid-column:1/-1;}
+  .lf-record-line {display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;margin:0 0 8px;font-size:12px;line-height:1.5;}
+  .lf-record-line span {color:var(--muted);font-size:10px;}
+  .lf-record-guidance {margin:7px 0;color:var(--muted);font-size:11px;line-height:1.55;}
+  .lf-record-card .lf-record-details {margin:0;padding:0;border:0;}
+  .lf-record-card summary {min-height:44px;padding:10px 0;font-size:12px;}
+  .lf-record-card details p {margin:2px 0 7px;font-size:12px;}
+  .lf-record-card .lf-candidates {margin:0;padding:0;}
+  .lf-record-card .lf-candidates>summary {color:var(--green);font-weight:600;}
+  .lf-candidate-list {list-style:none;margin:0 0 10px;padding:0;background:var(--paper);border-radius:6px;}
+  .lf-candidate-row {display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;padding:10px 12px;}
+  .lf-candidate-row+.lf-candidate-row {border-top:1px solid var(--line);}
+  .lf-candidate-info {flex:1 1 150px;min-width:0;}
+  .lf-candidate-info strong {font-size:13px;}
+  .lf-record-card .lf-candidate-info p {margin:2px 0 0;color:var(--muted);font-size:11px;line-height:1.5;}
+  .lf-candidate-row>button {flex:none;margin-left:auto;min-height:44px;padding:7px 10px;font-size:12px;}
+  .lf-record-footer {display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:49px;padding-top:8px;border-top:1px solid var(--line);}
+  .lf-record-footer>.lf-muted {margin:0;font-size:10px;white-space:nowrap;}
+  .lf-record-actions {display:flex;justify-content:flex-end;flex-wrap:wrap;gap:6px;}
+  .lf-record-actions button {min-height:40px;padding:7px 11px;font-size:12px;}
+  @media(max-width:520px) {
+    .lf-record-card {padding:13px 14px;}
+    .lf-record-header {margin-bottom:8px;}
+    .lf-record-card .lf-request-details {grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 12px;}
+    .lf-record-footer {align-items:flex-end;}
+    .lf-record-footer>.lf-muted {white-space:normal;}
+  }
 }
 }

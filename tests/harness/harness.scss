@@ -16,3 +16,53 @@
   border-radius: 6px;
   text-decoration: none;
 }
+
+// Staff-only preview of the Power Apps row layouts; no student styling changes.
+.lf-app.lf-staff {
+  .lf-item-form {gap:12px;}
+  .lf-item-form .lf-field {gap:4px;}
+  .lf-item-form .lf-field input:not([type=checkbox]) {height:32px;min-height:32px;padding:2px 12px;font-size:12px;font-weight:400;}
+  .lf-finder-email {display:flex;align-items:center;gap:8px;width:fit-content;max-width:100%;}
+  .lf-item-form .lf-field .lf-finder-email input {width:112px;flex:0 0 112px;padding-right:12px;}
+  .lf-finder-domain {display:flex;align-items:center;justify-content:flex-start;flex:0 0 180px;width:180px;height:32px;font-size:12px;font-weight:400;white-space:nowrap;pointer-events:none;}
+  .lf-item-form .lf-field>textarea {height:64px;min-height:64px;padding:2px 12px;font-size:12px;font-weight:400;}
+  .lf-inventory-list,.lf-receipt-list {overflow-x:auto;}
+  .lf-inventory-columns {display:grid;grid-template-columns:8fr 32fr 12fr 12fr 14fr 10fr 12fr;gap:8px;align-items:center;}
+  .lf-receipt-columns {display:grid;grid-template-columns:8fr 30fr 42fr 20fr;gap:12px;align-items:center;}
+  .lf-history-list {overflow-x:auto;}
+  .lf-history-columns {display:grid;grid-template-columns:8fr 40fr 14fr 16fr 22fr;gap:8px;align-items:center;}
+  .lf-notification-columns {display:grid;grid-template-columns:8fr 25fr 15fr 24fr 10fr 18fr;gap:8px;align-items:center;}
+  .lf-history-columns>span,.lf-notification-columns>span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .lf-history-footer {display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:20px;font-size:13px;}
+  .lf-history-footer nav {display:flex;gap:4px;}
+  .lf-history-footer button {width:32px;height:36px;min-height:36px;padding:0;border:0;border-radius:4px;background:transparent;color:#236855;}
+  .lf-history-footer button[aria-current=page] {background:#236855;color:#fff;}
+  .lf-detail-toggle {margin-top:12px;}
+  .lf-detail-more {display:grid;gap:12px;margin-top:16px;}
+  .lf-detail-more>button {justify-self:start;}
+  .lf-detail-secondary {display:grid;justify-items:start;gap:8px;margin-top:8px;}
+  .lf-list-heading {padding:8px 16px;min-width:700px;color:#68716d;font-size:12px;}
+  .lf-inventory-row,.lf-receipt-row {display:flex;position:relative;min-width:700px;border-radius:0;border:0;border-bottom:1px solid #e6e8e7;background:#fff;}
+  .lf-inventory-row:hover {background:#f7f7f7;}
+  .lf-inventory-row:focus-within {background:#f7f7f7;}
+  .lf-row-content {flex:1;min-width:0;text-align:left;padding:10px 16px;min-height:64px;border:0;border-radius:0;background:transparent;font-size:13px;}
+  .lf-receipt-row .lf-row-content {min-height:72px;}
+  .lf-receipt-item {min-width:0;}
+  .lf-receipt-item h3,.lf-receipt-item p {overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .lf-receipt-item p {margin:4px 0 0;font-size:12px;color:#68716d;font-weight:400;}
+  .lf-return-comparison {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;}
+  .lf-return-comparison .lf-quote {max-height:120px;overflow-y:auto;}
+  @media(max-width:540px) {.lf-return-comparison {grid-template-columns:minmax(0,1fr);}}
+  .lf-row-content h3 {font-size:14px;margin:0;font-weight:600;}
+  .lf-row-content>span {min-width:0;overflow-wrap:anywhere;}
+  .lf-row-content button {border:1px solid #d2d7d4;border-radius:4px;background:white;padding:8px;min-height:44px;font-size:13px;color:#236855;text-align:center;}
+  .lf-row-actions {position:absolute;right:8px;top:10px;display:flex;gap:4px;}
+  .lf-row-actions button {display:flex;align-items:center;justify-content:center;width:40px;height:44px;min-height:44px;padding:0;border:0;background:transparent;color:#0084be;border-radius:4px;}
+  .lf-row-actions button:hover {background:#eaf0ed;}
+  .lf-row-actions .lf-delete-action {color:#cd2d2d;}
+  .lf-delete-confirm {color:white;background:#b92828;border-color:#b92828;}
+  .lf-row-claim {color:#236855;}
+  .lf-row-window {grid-column:1/-1;color:#68716d;font-size:12px;}
+  .lf-row-check {align-self:center;margin:0 8px;width:24px;height:24px;flex-shrink:0;accent-color:#236855;}
+  .lf-selecting .lf-list-heading {padding-left:56px;}
+}

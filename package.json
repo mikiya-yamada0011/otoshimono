@@ -6,11 +6,16 @@
     "node": ">=22.14.0 < 23.0.0"
   },
   "scripts": {
+    "styles:build": "tailwindcss -i src/webparts/lostFoundStudent/styles/tailwind.css -o src/webparts/lostFoundStudent/styles/tailwind.generated.global.scss --minify",
+    "styles:watch": "tailwindcss -i src/webparts/lostFoundStudent/styles/tailwind.css -o src/webparts/lostFoundStudent/styles/tailwind.generated.global.scss --watch",
+    "prebuild": "npm run styles:build",
     "build": "heft test --clean --production && heft package-solution --production",
     "clean": "heft clean",
     "eject-webpack": "heft eject-webpack",
+    "prestart": "npm run styles:build",
     "start": "heft start --clean",
     "sync:public": "node deployment/sync-public-items.mjs deployment/site.example.json",
+    "pretest:harness": "npm run styles:build",
     "test:harness": "node scripts/test-harness.mjs",
     "test:workflow": "node scripts/test-workflow.mjs",
     "test:e2e": "playwright test"
@@ -36,6 +41,7 @@
     "@microsoft/spfx-web-build-rig": "1.23.2",
     "@playwright/test": "^1.63.0",
     "@rushstack/heft": "1.2.17",
+    "@tailwindcss/cli": "^4.3.3",
     "@types/jest": "30.0.0",
     "@types/react": "17.0.45",
     "@types/react-dom": "17.0.17",
@@ -45,6 +51,7 @@
     "eslint": "9.37.0",
     "eslint-plugin-react-hooks": "5.2.0",
     "sass": "^1.104.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "~5.8.0"
   },
   "overrides": {

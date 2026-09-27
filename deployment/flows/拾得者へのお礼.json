@@ -1,0 +1,554 @@
+{
+  "properties": {
+    "displayName": "落とし物 QRなし 拾得者へのお礼",
+    "connectionReferences": {},
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        }
+      },
+      "triggers": {
+        "tick": {
+          "type": "Recurrence",
+          "recurrence": {
+            "frequency": "Minute",
+            "interval": 1
+          },
+          "runtimeConfiguration": {
+            "concurrency": {
+              "runs": 1
+            }
+          }
+        }
+      },
+      "actions": {
+        "FinderHistorySubmissions": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetItems"
+            },
+            "parameters": {
+              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+              "table": "f819ca5d-1b4e-460c-99e7-bbf95e78567d",
+              "$filter": "ReviewStatus eq 'ACCEPTED'"
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runtimeConfiguration": {
+            "paginationPolicy": {
+              "minimumItemCount": 5000
+            }
+          },
+          "runAfter": {}
+        },
+        "EachFinderHistory": {
+          "type": "Foreach",
+          "foreach": "@body('FinderHistorySubmissions')?['value']",
+          "actions": {
+            "FinderHistoryCurrent": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "HttpRequest"
+                },
+                "parameters": {
+                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                  "parameters/method": "GET",
+                  "parameters/uri": "_api/web/lists/getbytitle('LFFoundSubmissions')/items(@{items('EachFinderHistory')?['ID']})",
+                  "parameters/headers": {
+                    "Accept": "application/json;odata=minimalmetadata",
+                    "Content-Type": "application/json;odata=nometadata"
+                  }
+                },
+                "authentication": "@parameters('$authentication')"
+              },
+              "runAfter": {}
+            },
+            "FinderHistoryItems": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "HttpRequest"
+                },
+                "parameters": {
+                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                  "parameters/method": "GET",
+                  "parameters/uri": "_api/web/lists/getbytitle('FoundItems')/items?$filter=StudentSubmissionKey eq '@{body('FinderHistoryCurrent')?['Id']}'&$top=2",
+                  "parameters/headers": {
+                    "Accept": "application/json;odata=minimalmetadata",
+                    "Content-Type": "application/json;odata=nometadata"
+                  }
+                },
+                "authentication": "@parameters('$authentication')"
+              },
+              "runAfter": {
+                "FinderHistoryCurrent": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "FinderHistoryTrusted": {
+              "type": "If",
+              "expression": "@and(equals(body('FinderHistoryCurrent')?['ReviewStatus'],'ACCEPTED'),equals(length(body('FinderHistoryItems')?['value']),1),equals(body('FinderHistoryCurrent')?['ItemId'],string(first(body('FinderHistoryItems')?['value'])?['Id'])),contains(createArray('保管中','返却済み','移管済み'),first(body('FinderHistoryItems')?['value'])?['Status']))",
+              "actions": {
+                "FinderHistoryChanged": {
+                  "type": "If",
+                  "expression": "@or(not(equals(coalesce(body('FinderHistoryCurrent')?['ItemStatus'],''),first(body('FinderHistoryItems')?['value'])?['Status'])),not(equals(coalesce(body('FinderHistoryCurrent')?['ReturnedAt'],''),if(equals(first(body('FinderHistoryItems')?['value'])?['Status'],'返却済み'),coalesce(first(body('FinderHistoryItems')?['value'])?['ReturnedAt'],''),''))))",
+                  "actions": {
+                    "FinderHistoryUpdate_Body": {
+                      "type": "Compose",
+                      "inputs": {
+                        "ItemStatus": "@first(body('FinderHistoryItems')?['value'])?['Status']",
+                        "ReturnedAt": "@if(equals(first(body('FinderHistoryItems')?['value'])?['Status'],'返却済み'),first(body('FinderHistoryItems')?['value'])?['ReturnedAt'],null)"
+                      },
+                      "runAfter": {}
+                    },
+                    "FinderHistoryUpdate": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "POST",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFFoundSubmissions')/items(@{body('FinderHistoryCurrent')?['Id']})",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata",
+                            "X-HTTP-Method": "MERGE",
+                            "IF-MATCH": "@body('FinderHistoryCurrent')?['odata.etag']"
+                          },
+                          "parameters/body": "@string(outputs('FinderHistoryUpdate_Body'))"
+                        },
+                        "authentication": "@parameters('$authentication')"
+                      },
+                      "runAfter": {
+                        "FinderHistoryUpdate_Body": [
+                          "Succeeded"
+                        ]
+                      }
+                    }
+                  },
+                  "else": {
+                    "actions": {}
+                  },
+                  "runAfter": {}
+                }
+              },
+              "else": {
+                "actions": {}
+              },
+              "runAfter": {
+                "FinderHistoryItems": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "runtimeConfiguration": {
+            "concurrency": {
+              "repetitions": 1
+            }
+          },
+          "runAfter": {
+            "FinderHistorySubmissions": [
+              "Succeeded"
+            ]
+          }
+        },
+        "ReturnedFinderItems": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetItems"
+            },
+            "parameters": {
+              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+              "table": "617870b8-de06-454f-8267-993453389662",
+              "$filter": "Status eq '返却済み' and FinderThanksQueued eq 0 and (StudentSubmissionKey ne null or FinderEmail ne null)"
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runtimeConfiguration": {
+            "paginationPolicy": {
+              "minimumItemCount": 5000
+            }
+          },
+          "runAfter": {
+            "EachFinderHistory": [
+              "Succeeded"
+            ]
+          }
+        },
+        "EachFinderReturn": {
+          "type": "Foreach",
+          "foreach": "@body('ReturnedFinderItems')?['value']",
+          "actions": {
+            "FinderReturnedItem": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "HttpRequest"
+                },
+                "parameters": {
+                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                  "parameters/method": "GET",
+                  "parameters/uri": "_api/web/lists/getbytitle('FoundItems')/items(@{items('EachFinderReturn')?['ID']})",
+                  "parameters/headers": {
+                    "Accept": "application/json;odata=minimalmetadata",
+                    "Content-Type": "application/json;odata=nometadata"
+                  }
+                },
+                "authentication": "@parameters('$authentication')"
+              },
+              "runAfter": {}
+            },
+            "FinderReturnHasFinder": {
+              "type": "If",
+              "expression": "@and(equals(body('FinderReturnedItem')?['Status'],'返却済み'),or(not(empty(body('FinderReturnedItem')?['StudentSubmissionKey'])),not(empty(body('FinderReturnedItem')?['FinderEmail']))))",
+              "actions": {
+                "FinderReturnStudentSubmission": {
+                  "type": "If",
+                  "expression": "@not(empty(body('FinderReturnedItem')?['StudentSubmissionKey']))",
+                  "actions": {
+                    "FinderReturnSubmission": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "GET",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFFoundSubmissions')/items(@{int(body('FinderReturnedItem')?['StudentSubmissionKey'])})?$select=Id,AuthorId,ReceiveReturnEmail,Author/EMail&$expand=Author",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata"
+                          }
+                        },
+                        "authentication": "@parameters('$authentication')"
+                      },
+                      "runAfter": {}
+                    },
+                    "FinderReturnAuthenticatedFinder": {
+                      "type": "If",
+                      "expression": "@and(equals(body('FinderReturnSubmission')?['ReceiveReturnEmail'],true),greater(coalesce(body('FinderReturnSubmission')?['AuthorId'],0),0),and(equals(length(split(toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],'')),'@')),2),or(contains(first(split(toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],'')),'@')),'0'),contains(first(split(toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],'')),'@')),'1'),contains(first(split(toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],'')),'@')),'2'),contains(first(split(toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],'')),'@')),'3'),contains(first(split(toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],'')),'@')),'4'),contains(first(split(toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],'')),'@')),'5'),contains(first(split(toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],'')),'@')),'6'),contains(first(split(toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],'')),'@')),'7'),contains(first(split(toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],'')),'@')),'8'),contains(first(split(toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],'')),'@')),'9')),contains(createArray('stu.kobe-u.ac.jp'),last(split(toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],'')),'@')))))",
+                      "actions": {
+                        "FinderReturnKey": {
+                          "type": "Compose",
+                          "inputs": "@concat('FINDER_RETURN:',string(body('FinderReturnedItem')?['Id']),':',coalesce(body('FinderReturnedItem')?['StudentSubmissionKey'],''))",
+                          "runAfter": {}
+                        },
+                        "FinderReturnQueue": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "GET",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items?$filter=Title eq '@{outputs('FinderReturnKey')}'&$top=1",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata"
+                              }
+                            },
+                            "authentication": "@parameters('$authentication')"
+                          },
+                          "runAfter": {
+                            "FinderReturnKey": [
+                              "Succeeded"
+                            ]
+                          }
+                        },
+                        "FinderReturnMissing": {
+                          "type": "If",
+                          "expression": "@empty(body('FinderReturnQueue')?['value'])",
+                          "actions": {
+                            "FinderReturnCreateMail_Body": {
+                              "type": "Compose",
+                              "inputs": {
+                                "Title": "@outputs('FinderReturnKey')",
+                                "NotificationKey": "@outputs('FinderReturnKey')",
+                                "RecipientEmail": "@toLower(coalesce(body('FinderReturnSubmission')?['Author']?['EMail'],''))",
+                                "MailSubject": "届けてくださってありがとうございました",
+                                "MailBody": "届けてくださった落とし物は、持ち主に返却できました。ご協力ありがとうございました。",
+                                "MailStatus": "PENDING",
+                                "ErrorMessage": ""
+                              },
+                              "runAfter": {}
+                            },
+                            "FinderReturnCreateMail": {
+                              "type": "OpenApiConnection",
+                              "inputs": {
+                                "host": {
+                                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                  "connectionName": "shared_sharepointonline",
+                                  "operationId": "HttpRequest"
+                                },
+                                "parameters": {
+                                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                  "parameters/method": "POST",
+                                  "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items",
+                                  "parameters/headers": {
+                                    "Accept": "application/json;odata=minimalmetadata",
+                                    "Content-Type": "application/json;odata=nometadata"
+                                  },
+                                  "parameters/body": "@string(outputs('FinderReturnCreateMail_Body'))"
+                                },
+                                "authentication": "@parameters('$authentication')"
+                              },
+                              "runAfter": {
+                                "FinderReturnCreateMail_Body": [
+                                  "Succeeded"
+                                ]
+                              }
+                            }
+                          },
+                          "else": {
+                            "actions": {}
+                          },
+                          "runAfter": {
+                            "FinderReturnQueue": [
+                              "Succeeded"
+                            ]
+                          }
+                        }
+                      },
+                      "else": {
+                        "actions": {}
+                      },
+                      "runAfter": {
+                        "FinderReturnSubmission": [
+                          "Succeeded"
+                        ]
+                      }
+                    }
+                  },
+                  "else": {
+                    "actions": {
+                      "StaffFinderReturnEmailValid": {
+                        "type": "If",
+                        "expression": "@and(equals(length(split(toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],''))),'@')),2),or(contains(first(split(toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],''))),'@')),'0'),contains(first(split(toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],''))),'@')),'1'),contains(first(split(toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],''))),'@')),'2'),contains(first(split(toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],''))),'@')),'3'),contains(first(split(toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],''))),'@')),'4'),contains(first(split(toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],''))),'@')),'5'),contains(first(split(toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],''))),'@')),'6'),contains(first(split(toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],''))),'@')),'7'),contains(first(split(toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],''))),'@')),'8'),contains(first(split(toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],''))),'@')),'9')),contains(createArray('stu.kobe-u.ac.jp'),last(split(toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],''))),'@'))))",
+                        "actions": {
+                          "StaffFinderReturnKey": {
+                            "type": "Compose",
+                            "inputs": "@concat('FINDER_RETURN:',string(body('FinderReturnedItem')?['Id']),':',coalesce(body('FinderReturnedItem')?['StudentSubmissionKey'],''))",
+                            "runAfter": {}
+                          },
+                          "StaffFinderReturnQueue": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "GET",
+                                "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items?$filter=Title eq '@{outputs('StaffFinderReturnKey')}'&$top=1",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata"
+                                }
+                              },
+                              "authentication": "@parameters('$authentication')"
+                            },
+                            "runAfter": {
+                              "StaffFinderReturnKey": [
+                                "Succeeded"
+                              ]
+                            }
+                          },
+                          "StaffFinderReturnMissing": {
+                            "type": "If",
+                            "expression": "@empty(body('StaffFinderReturnQueue')?['value'])",
+                            "actions": {
+                              "StaffFinderReturnCreateMail_Body": {
+                                "type": "Compose",
+                                "inputs": {
+                                  "Title": "@outputs('StaffFinderReturnKey')",
+                                  "NotificationKey": "@outputs('StaffFinderReturnKey')",
+                                  "RecipientEmail": "@toLower(trim(coalesce(body('FinderReturnedItem')?['FinderEmail'],'')))",
+                                  "MailSubject": "届けてくださってありがとうございました",
+                                  "MailBody": "届けてくださった落とし物は、持ち主に返却できました。ご協力ありがとうございました。",
+                                  "MailStatus": "PENDING",
+                                  "ErrorMessage": ""
+                                },
+                                "runAfter": {}
+                              },
+                              "StaffFinderReturnCreateMail": {
+                                "type": "OpenApiConnection",
+                                "inputs": {
+                                  "host": {
+                                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                    "connectionName": "shared_sharepointonline",
+                                    "operationId": "HttpRequest"
+                                  },
+                                  "parameters": {
+                                    "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                    "parameters/method": "POST",
+                                    "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items",
+                                    "parameters/headers": {
+                                      "Accept": "application/json;odata=minimalmetadata",
+                                      "Content-Type": "application/json;odata=nometadata"
+                                    },
+                                    "parameters/body": "@string(outputs('StaffFinderReturnCreateMail_Body'))"
+                                  },
+                                  "authentication": "@parameters('$authentication')"
+                                },
+                                "runAfter": {
+                                  "StaffFinderReturnCreateMail_Body": [
+                                    "Succeeded"
+                                  ]
+                                }
+                              }
+                            },
+                            "else": {
+                              "actions": {}
+                            },
+                            "runAfter": {
+                              "StaffFinderReturnQueue": [
+                                "Succeeded"
+                              ]
+                            }
+                          }
+                        },
+                        "else": {
+                          "actions": {}
+                        },
+                        "runAfter": {}
+                      }
+                    }
+                  },
+                  "runAfter": {}
+                }
+              },
+              "else": {
+                "actions": {}
+              },
+              "runAfter": {
+                "FinderReturnedItem": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "FinderReturnDurableQueue": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "HttpRequest"
+                },
+                "parameters": {
+                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                  "parameters/method": "GET",
+                  "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items?$filter=Title eq 'FINDER_RETURN:@{body('FinderReturnedItem')?['Id']}:@{coalesce(body('FinderReturnedItem')?['StudentSubmissionKey'],'')}'&$top=1",
+                  "parameters/headers": {
+                    "Accept": "application/json;odata=minimalmetadata",
+                    "Content-Type": "application/json;odata=nometadata"
+                  }
+                },
+                "authentication": "@parameters('$authentication')"
+              },
+              "runAfter": {
+                "FinderReturnHasFinder": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "FinderReturnQueued": {
+              "type": "If",
+              "expression": "@not(empty(body('FinderReturnDurableQueue')?['value']))",
+              "actions": {
+                "FinderReturnAcknowledge_Body": {
+                  "type": "Compose",
+                  "inputs": {
+                    "FinderThanksQueued": true
+                  },
+                  "runAfter": {}
+                },
+                "FinderReturnAcknowledge": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "POST",
+                      "parameters/uri": "_api/web/lists/getbytitle('FoundItems')/items(@{body('FinderReturnedItem')?['Id']})",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata",
+                        "X-HTTP-Method": "MERGE",
+                        "IF-MATCH": "@body('FinderReturnedItem')?['odata.etag']"
+                      },
+                      "parameters/body": "@string(outputs('FinderReturnAcknowledge_Body'))"
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {
+                    "FinderReturnAcknowledge_Body": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "else": {
+                "actions": {}
+              },
+              "runAfter": {
+                "FinderReturnDurableQueue": [
+                  "Succeeded"
+                ]
+              }
+            }
+          },
+          "runtimeConfiguration": {
+            "concurrency": {
+              "repetitions": 1
+            }
+          },
+          "runAfter": {
+            "ReturnedFinderItems": [
+              "Succeeded"
+            ]
+          }
+        }
+      },
+      "outputs": {}
+    }
+  }
+}

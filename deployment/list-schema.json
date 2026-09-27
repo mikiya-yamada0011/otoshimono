@@ -1,4 +1,28 @@
 {
+  "LFFoundSubmissions": {
+    "access": "submit",
+    "uniqueTitle": false,
+    "viewFields": ["Title", "ReviewStatus", "Author", "FoundOn", "StorageWindow", "ReviewReason"],
+    "fields": [
+      { "name": "ParentCategoryCode", "type": "Text" },
+      { "name": "CategoryCode", "type": "Text" },
+      { "name": "Colors", "type": "Text" },
+      { "name": "CampusCode", "type": "Text" },
+      { "name": "BuildingCode", "type": "Text" },
+      { "name": "Place", "type": "Text" },
+      { "name": "FoundOn", "type": "DateOnly" },
+      { "name": "Feature", "type": "Note" },
+      { "name": "ReceiveReturnEmail", "type": "Boolean" },
+      { "name": "ReviewStatus", "type": "Text", "indexed": true, "allowedValues": ["PENDING", "PROCESSING", "ACCEPTED", "REJECTED"] },
+      { "name": "ReviewReason", "type": "Note" },
+      { "name": "StorageWindow", "type": "Text" },
+      { "name": "ItemId", "type": "Text" },
+      { "name": "ReviewedAt", "type": "DateTime" },
+      { "name": "ReviewedByEmail", "type": "Text" },
+      { "name": "ItemStatus", "type": "Text", "allowedValues": ["保管中", "返却済み", "移管済み"] },
+      { "name": "ReturnedAt", "type": "DateTime" }
+    ]
+  },
   "LFPublicItems": {
     "access": "public",
     "uniqueTitle": true,
@@ -15,13 +39,13 @@
       { "name": "FoundOn", "type": "DateOnly", "indexed": true },
       { "name": "StorageWindow", "type": "Text", "indexed": true },
       { "name": "Feature", "type": "Note" },
-      { "name": "ItemStatus", "type": "Text", "allowedValues": ["保管中", "返却済み", "移管済み", "処分済み"], "indexed": true },
+      { "name": "ItemStatus", "type": "Text", "allowedValues": ["保管中", "返却済み", "移管済み"], "indexed": true },
       { "name": "SourceCreatedAt", "type": "DateTime" }
     ]
   },
   "LFProfiles": {
     "access": "own",
-    "uniqueTitle": true,
+    "uniqueTitle": false,
     "viewFields": ["DefaultWindow", "DefaultCampusCode", "Author", "Modified"],
     "fields": [
       { "name": "DefaultWindow", "type": "Text" },
@@ -48,14 +72,15 @@
   "LFClaims": {
     "access": "own",
     "uniqueTitle": false,
-    "viewFields": ["ItemId", "RequestId", "ItemTitle", "StorageWindow", "ClaimStatus", "Author", "Created"],
+    "viewFields": ["ItemId", "RequestId", "ItemTitle", "StorageWindow", "ClaimStatus", "ReturnedAt", "Author", "Created"],
     "fields": [
       { "name": "ItemId", "type": "Text", "indexed": true },
       { "name": "RequestId", "type": "Text", "indexed": true },
       { "name": "Feature", "type": "Note" },
       { "name": "ItemTitle", "type": "Text" },
       { "name": "StorageWindow", "type": "Text", "indexed": true },
-      { "name": "ClaimStatus", "type": "Text", "allowedValues": ["PENDING", "CANCELLED"], "indexed": true }
+      { "name": "ClaimStatus", "type": "Text", "allowedValues": ["PENDING", "CANCELLED", "RETURNED", "UNAVAILABLE"], "indexed": true },
+      { "name": "ReturnedAt", "type": "DateTime" }
     ]
   },
   "LFNotices": {
@@ -69,7 +94,7 @@
       { "name": "ItemId", "type": "Text", "indexed": true },
       { "name": "RequestId", "type": "Text", "indexed": true },
       { "name": "ClaimId", "type": "Text", "indexed": true },
-      { "name": "NoticeKind", "type": "Text", "allowedValues": ["MATCH", "VALUABLE", "RETURN", "FINDER"], "indexed": true },
+      { "name": "NoticeKind", "type": "Text", "allowedValues": ["MATCH", "VALUABLE"], "indexed": true },
       { "name": "ItemTitle", "type": "Text" },
       { "name": "StorageWindow", "type": "Text" },
       { "name": "Message", "type": "Note" },
@@ -77,8 +102,8 @@
     ]
   },
   "LFThanks": {
-    "access": "own",
-    "uniqueTitle": true,
+    "access": "private",
+    "uniqueTitle": false,
     "viewFields": ["ClaimId", "Message", "Author", "Created"],
     "fields": [
       { "name": "ClaimId", "type": "Text", "indexed": true },
@@ -86,7 +111,7 @@
     ]
   },
   "LFPublicThanks": {
-    "access": "public",
+    "access": "private",
     "uniqueTitle": true,
     "viewFields": ["SourceThanksId", "Message", "SubmittedAt"],
     "fields": [

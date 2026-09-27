@@ -100,7 +100,7 @@
         },
         "Public": {
           "type": "If",
-          "expression": "@and(equals(body('Item')?['Status'],'保管中'),equals(body('Item')?['IsPublic'],true),not(empty(body('Item')?['ParentCategoryCode'])),not(contains(createArray('P01','P10','P11','P12'),body('Item')?['ParentCategoryCode'])),not(contains(createArray('P02_SMARTPHONE','P02_LAPTOP','P02_TABLET','P02_STORAGE_MEDIA'),body('Item')?['CategoryCode'])))",
+          "expression": "@and(equals(body('Item')?['Status'],'保管中'),equals(body('Item')?['IsPublic'],true),not(empty(body('Item')?['ParentCategoryCode'])))",
           "actions": {
             "Exists": {
               "type": "If",
@@ -274,7 +274,7 @@
         },
         "PrivateRequested": {
           "type": "If",
-          "expression": "@not(empty(triggerBody()?['number_1']))",
+          "expression": "@greater(coalesce(triggerBody()?['number_1'],0),0)",
           "actions": {
             "Request": {
               "type": "OpenApiConnection",
@@ -300,10 +300,183 @@
               },
               "runAfter": {}
             },
+            "PrivateRequestClaims": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": {
+                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                  "connectionName": "shared_sharepointonline",
+                  "operationId": "HttpRequest"
+                },
+                "parameters": {
+                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                  "parameters/method": "GET",
+                  "parameters/uri": "_api/web/lists/getbytitle('LFClaims')/items?$filter=RequestId eq '@{body('Request')?['Id']}' and AuthorId eq @{body('Request')?['AuthorId']} and (ClaimStatus eq 'PENDING' or ClaimStatus eq 'RETURNED')&$top=1",
+                  "parameters/headers": {
+                    "Accept": "application/json;odata=minimalmetadata",
+                    "Content-Type": "application/json;odata=nometadata"
+                  }
+                },
+                "authentication": {
+                  "value": "@json(decodeBase64(triggerOutputs().headers['X-MS-APIM-Tokens']))['$ConnectionKey']",
+                  "type": "Raw"
+                }
+              },
+              "runAfter": {
+                "Request": [
+                  "Succeeded"
+                ]
+              }
+            },
             "ValidPrivate": {
               "type": "If",
-              "expression": "@and(equals(body('Item')?['Status'],'保管中'),equals(body('Item')?['IsPublic'],false),equals(body('Request')?['RequestStatus'],'ACTIVE'),not(empty(body('Request')?['AuthorId'])),not(empty(body('Request')?['Author']?['EMail'])))",
+              "expression": "@and(equals(body('Item')?['Status'],'保管中'),equals(body('Item')?['IsPublic'],false),equals(body('Request')?['RequestStatus'],'ACTIVE'),empty(body('PrivateRequestClaims')?['value']),greater(coalesce(body('Request')?['AuthorId'],0),0),not(empty(body('Request')?['Author']?['EMail'])))",
               "actions": {
+                "PrivateUnavailableClaims": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "GetItems"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "table": "d08a0352-5ab6-4c4c-80c5-ce864cf2b598",
+                      "$filter": "ItemId eq '@{body('Item')?['Id']}' and AuthorId eq @{body('Request')?['AuthorId']} and ClaimStatus eq 'UNAVAILABLE'"
+                    },
+                    "authentication": {
+                      "value": "@json(decodeBase64(triggerOutputs().headers['X-MS-APIM-Tokens']))['$ConnectionKey']",
+                      "type": "Raw"
+                    }
+                  },
+                  "runtimeConfiguration": {
+                    "paginationPolicy": {
+                      "minimumItemCount": 5000
+                    }
+                  },
+                  "runAfter": {}
+                },
+                "EachPrivateUnavailable": {
+                  "type": "Foreach",
+                  "foreach": "@body('PrivateUnavailableClaims')?['value']",
+                  "actions": {
+                    "RenewItem": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "GET",
+                          "parameters/uri": "_api/web/lists/getbytitle('FoundItems')/items(@{body('Item')?['Id']})",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata"
+                          }
+                        },
+                        "authentication": {
+                          "value": "@json(decodeBase64(triggerOutputs().headers['X-MS-APIM-Tokens']))['$ConnectionKey']",
+                          "type": "Raw"
+                        }
+                      },
+                      "runAfter": {}
+                    },
+                    "RenewClaim": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                          "connectionName": "shared_sharepointonline",
+                          "operationId": "HttpRequest"
+                        },
+                        "parameters": {
+                          "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                          "parameters/method": "GET",
+                          "parameters/uri": "_api/web/lists/getbytitle('LFClaims')/items(@{items('EachPrivateUnavailable')?['ID']})",
+                          "parameters/headers": {
+                            "Accept": "application/json;odata=minimalmetadata",
+                            "Content-Type": "application/json;odata=nometadata"
+                          }
+                        },
+                        "authentication": {
+                          "value": "@json(decodeBase64(triggerOutputs().headers['X-MS-APIM-Tokens']))['$ConnectionKey']",
+                          "type": "Raw"
+                        }
+                      },
+                      "runAfter": {
+                        "RenewItem": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "StillRenewable": {
+                      "type": "If",
+                      "expression": "@and(equals(body('RenewItem')?['Status'],'保管中'),equals(body('RenewItem')?['IsPublic'],false),equals(body('RenewClaim')?['ItemId'],string(body('RenewItem')?['Id'])),equals(body('RenewClaim')?['AuthorId'],body('Request')?['AuthorId']),equals(body('RenewClaim')?['ClaimStatus'],'UNAVAILABLE'))",
+                      "actions": {
+                        "RenewCandidate_Body": {
+                          "type": "Compose",
+                          "inputs": {
+                            "ClaimStatus": "CANCELLED"
+                          },
+                          "runAfter": {}
+                        },
+                        "RenewCandidate": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                              "connectionName": "shared_sharepointonline",
+                              "operationId": "HttpRequest"
+                            },
+                            "parameters": {
+                              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                              "parameters/method": "POST",
+                              "parameters/uri": "_api/web/lists/getbytitle('LFClaims')/items(@{body('RenewClaim')?['Id']})",
+                              "parameters/headers": {
+                                "Accept": "application/json;odata=minimalmetadata",
+                                "Content-Type": "application/json;odata=nometadata",
+                                "X-HTTP-Method": "MERGE",
+                                "IF-MATCH": "@body('RenewClaim')?['odata.etag']"
+                              },
+                              "parameters/body": "@string(outputs('RenewCandidate_Body'))"
+                            },
+                            "authentication": {
+                              "value": "@json(decodeBase64(triggerOutputs().headers['X-MS-APIM-Tokens']))['$ConnectionKey']",
+                              "type": "Raw"
+                            }
+                          },
+                          "runAfter": {
+                            "RenewCandidate_Body": [
+                              "Succeeded"
+                            ]
+                          }
+                        }
+                      },
+                      "else": {
+                        "actions": {}
+                      },
+                      "runAfter": {
+                        "RenewClaim": [
+                          "Succeeded"
+                        ]
+                      }
+                    }
+                  },
+                  "runtimeConfiguration": {
+                    "concurrency": {
+                      "repetitions": 1
+                    }
+                  },
+                  "runAfter": {
+                    "PrivateUnavailableClaims": [
+                      "Succeeded"
+                    ]
+                  }
+                },
                 "PrivateValue": {
                   "type": "Compose",
                   "inputs": {
@@ -319,7 +492,11 @@
                     "message": "登録した紛失申告に該当する可能性のある拾得物を保管しています。品物の詳細は公開していません。受取窓口で本人確認を受けてください。",
                     "createdAt": "@utcNow()"
                   },
-                  "runAfter": {}
+                  "runAfter": {
+                    "EachPrivateUnavailable": [
+                      "Succeeded"
+                    ]
+                  }
                 },
                 "PrivateExisting": {
                   "type": "OpenApiConnection",
@@ -438,6 +615,120 @@
                     ]
                   }
                 },
+                "PrivateReset_Body": {
+                  "type": "Compose",
+                  "inputs": {},
+                  "runAfter": {
+                    "PrivateRows": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "PrivateReset": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "POST",
+                      "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{first(body('PrivateRows')?['value'])?['Id']})/resetroleinheritance()",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata"
+                      },
+                      "parameters/body": "@string(outputs('PrivateReset_Body'))"
+                    },
+                    "authentication": {
+                      "value": "@json(decodeBase64(triggerOutputs().headers['X-MS-APIM-Tokens']))['$ConnectionKey']",
+                      "type": "Raw"
+                    }
+                  },
+                  "runAfter": {
+                    "PrivateReset_Body": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "PrivateBreak_Body": {
+                  "type": "Compose",
+                  "inputs": {},
+                  "runAfter": {
+                    "PrivateReset": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "PrivateBreak": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "POST",
+                      "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{first(body('PrivateRows')?['value'])?['Id']})/breakroleinheritance(copyRoleAssignments=true,clearSubscopes=false)",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata"
+                      },
+                      "parameters/body": "@string(outputs('PrivateBreak_Body'))"
+                    },
+                    "authentication": {
+                      "value": "@json(decodeBase64(triggerOutputs().headers['X-MS-APIM-Tokens']))['$ConnectionKey']",
+                      "type": "Raw"
+                    }
+                  },
+                  "runAfter": {
+                    "PrivateBreak_Body": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "PrivateGrant_Body": {
+                  "type": "Compose",
+                  "inputs": {},
+                  "runAfter": {
+                    "PrivateBreak": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "PrivateGrant": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/method": "POST",
+                      "parameters/uri": "_api/web/lists/getbytitle('LFNotices')/items(@{first(body('PrivateRows')?['value'])?['Id']})/roleassignments/addroleassignment(principalid=@{outputs('PrivateValue')?['owner']},roledefid=1073741826)",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata",
+                        "Content-Type": "application/json;odata=nometadata"
+                      },
+                      "parameters/body": "@string(outputs('PrivateGrant_Body'))"
+                    },
+                    "authentication": {
+                      "value": "@json(decodeBase64(triggerOutputs().headers['X-MS-APIM-Tokens']))['$ConnectionKey']",
+                      "type": "Raw"
+                    }
+                  },
+                  "runAfter": {
+                    "PrivateGrant_Body": [
+                      "Succeeded"
+                    ]
+                  }
+                },
                 "PrivateMailRows": {
                   "type": "OpenApiConnection",
                   "inputs": {
@@ -461,7 +752,7 @@
                     }
                   },
                   "runAfter": {
-                    "PrivateRows": [
+                    "PrivateGrant": [
                       "Succeeded"
                     ]
                   }
@@ -514,7 +805,57 @@
                     }
                   },
                   "else": {
-                    "actions": {}
+                    "actions": {
+                      "PrivateMailFailed": {
+                        "type": "If",
+                        "expression": "@equals(first(body('PrivateMailRows')?['value'])?['MailStatus'],'ERROR')",
+                        "actions": {
+                          "PrivateMailRetry_Body": {
+                            "type": "Compose",
+                            "inputs": {
+                              "MailStatus": "PENDING",
+                              "ErrorMessage": ""
+                            },
+                            "runAfter": {}
+                          },
+                          "PrivateMailRetry": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                              "host": {
+                                "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                "connectionName": "shared_sharepointonline",
+                                "operationId": "HttpRequest"
+                              },
+                              "parameters": {
+                                "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                "parameters/method": "POST",
+                                "parameters/uri": "_api/web/lists/getbytitle('LFMailOutbox')/items(@{first(body('PrivateMailRows')?['value'])?['Id']})",
+                                "parameters/headers": {
+                                  "Accept": "application/json;odata=minimalmetadata",
+                                  "Content-Type": "application/json;odata=nometadata",
+                                  "X-HTTP-Method": "MERGE",
+                                  "IF-MATCH": "*"
+                                },
+                                "parameters/body": "@string(outputs('PrivateMailRetry_Body'))"
+                              },
+                              "authentication": {
+                                "value": "@json(decodeBase64(triggerOutputs().headers['X-MS-APIM-Tokens']))['$ConnectionKey']",
+                                "type": "Raw"
+                              }
+                            },
+                            "runAfter": {
+                              "PrivateMailRetry_Body": [
+                                "Succeeded"
+                              ]
+                            }
+                          }
+                        },
+                        "else": {
+                          "actions": {}
+                        },
+                        "runAfter": {}
+                      }
+                    }
                   },
                   "runAfter": {
                     "PrivateMailRows": [
@@ -531,7 +872,7 @@
                       "runStatus": "Failed",
                       "runError": {
                         "code": "InvalidPrivateInvite",
-                        "message": "保管中の非公開品と有効な紛失申告を指定してください。"
+                        "message": "保管中の非公開品と有効な紛失申告を指定してください。受け取り予定・受け取り済みの登録には追加案内できません。"
                       }
                     },
                     "runAfter": {}
@@ -539,7 +880,7 @@
                 }
               },
               "runAfter": {
-                "Request": [
+                "PrivateRequestClaims": [
                   "Succeeded"
                 ]
               }

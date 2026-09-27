@@ -55,3 +55,4 @@ obj
 
 # Styles Generated Code
 *.scss.ts
+src/webparts/lostFoundStudent/styles/tailwind.generated.global.scss

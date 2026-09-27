@@ -4,8 +4,8 @@ import { Version } from '@microsoft/sp-core-library';
 import { type IPropertyPaneConfiguration, PropertyPaneTextField } from '@microsoft/sp-property-pane';
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import LostFoundApp from './app/LostFoundApp';
-import { SharePointRepository } from './app/repositories';
-import { StudentService } from './app/service';
+import { SharePointRepository } from './found-items/api/repositories';
+import { StudentService } from './found-items/api/service';
 
 export interface ILostFoundStudentWebPartProps {
   schoolEmailDomains: string;
