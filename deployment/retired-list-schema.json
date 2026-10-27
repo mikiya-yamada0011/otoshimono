@@ -1,0 +1,168 @@
+{
+  "LFBatchPhotos": {
+    "access": "public",
+    "attachments": true,
+    "uniqueTitle": true,
+    "viewFields": [
+      "Title",
+      "BatchId",
+      "FileName",
+      "Attachments",
+      "Created"
+    ],
+    "fields": [
+      {
+        "name": "BatchId",
+        "type": "Number",
+        "indexed": true
+      },
+      {
+        "name": "FileName",
+        "type": "Text"
+      },
+      {
+        "name": "UploadSession",
+        "type": "Text"
+      }
+    ]
+  },
+  "LFFoundSubmissions": {
+    "access": "submit",
+    "uniqueTitle": false,
+    "viewFields": [
+      "Title",
+      "ReviewStatus",
+      "Author",
+      "FoundOn",
+      "StorageWindow",
+      "ReviewReason"
+    ],
+    "fields": [
+      {
+        "name": "ParentCategoryCode",
+        "type": "Text"
+      },
+      {
+        "name": "CategoryCode",
+        "type": "Text"
+      },
+      {
+        "name": "Colors",
+        "type": "Text"
+      },
+      {
+        "name": "CampusCode",
+        "type": "Text"
+      },
+      {
+        "name": "BuildingCode",
+        "type": "Text"
+      },
+      {
+        "name": "Place",
+        "type": "Text"
+      },
+      {
+        "name": "FoundOn",
+        "type": "DateOnly"
+      },
+      {
+        "name": "Feature",
+        "type": "Note"
+      },
+      {
+        "name": "ReceiveReturnEmail",
+        "type": "Boolean"
+      },
+      {
+        "name": "ReviewStatus",
+        "type": "Text",
+        "indexed": true,
+        "allowedValues": [
+          "PENDING",
+          "PROCESSING",
+          "ACCEPTED",
+          "REJECTED"
+        ]
+      },
+      {
+        "name": "ReviewReason",
+        "type": "Note"
+      },
+      {
+        "name": "StorageWindow",
+        "type": "Text"
+      },
+      {
+        "name": "ItemId",
+        "type": "Text"
+      },
+      {
+        "name": "ReviewedAt",
+        "type": "DateTime"
+      },
+      {
+        "name": "ReviewedByEmail",
+        "type": "Text"
+      },
+      {
+        "name": "ItemStatus",
+        "type": "Text",
+        "allowedValues": [
+          "保管中",
+          "返却済み",
+          "移管済み"
+        ]
+      },
+      {
+        "name": "ReturnedAt",
+        "type": "DateTime"
+      }
+    ]
+  },
+  "LFThanks": {
+    "access": "private",
+    "uniqueTitle": false,
+    "viewFields": [
+      "ClaimId",
+      "Message",
+      "Author",
+      "Created"
+    ],
+    "fields": [
+      {
+        "name": "ClaimId",
+        "type": "Text",
+        "indexed": true
+      },
+      {
+        "name": "Message",
+        "type": "Note"
+      }
+    ]
+  },
+  "LFPublicThanks": {
+    "access": "private",
+    "uniqueTitle": true,
+    "viewFields": [
+      "SourceThanksId",
+      "Message",
+      "SubmittedAt"
+    ],
+    "fields": [
+      {
+        "name": "SourceThanksId",
+        "type": "Text",
+        "indexed": true
+      },
+      {
+        "name": "Message",
+        "type": "Note"
+      },
+      {
+        "name": "SubmittedAt",
+        "type": "DateTime"
+      }
+    ]
+  }
+}

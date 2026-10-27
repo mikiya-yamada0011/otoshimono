@@ -16,7 +16,7 @@ export function seedDatabase(): Database {
     {...base,id:'4',parent:'P01',category:'P01_WALLET',title:'財布',colors:['黒'],valuable:true,feature:'黒い二つ折り財布'},
     {...base,id:'5',parent:'P02',category:'P02_EARPHONE_WIRELESS',title:'ワイヤレスイヤホン',colors:['白'],feature:'白いケース付き'},
   ];
-  return {items:values.map(v=>({id:v.id,author:DEMO_STAFF.id,etag:'1',value:{...v}})),public:values.filter(v=>!v.valuable).map(v=>({id:v.id,author:DEMO_STAFF.id,etag:'1',value:{...publicItem(v),sourceId:v.id}})),profiles:[{id:'1',author:DEMO_STAFF.id,etag:'1',value:{email:DEMO_STAFF.email,window:'農学部事務室'}}],requests:[],claims:[],notices:[],mail:[],submissions:[]};
+  return {items:values.map(v=>({id:v.id,author:DEMO_STAFF.id,etag:'1',value:{...v}})),public:values.filter(v=>!v.valuable).map(v=>({id:v.id,author:DEMO_STAFF.id,etag:'1',value:{...publicItem(v),sourceId:v.id}})),profiles:[{id:'1',author:DEMO_STAFF.id,etag:'1',value:{email:DEMO_STAFF.email,window:'農学部事務室'}}],requests:[],claims:[],notices:[],mail:[],submissions:[],photoBatches:[]};
 }
 
 export class DemoRepository implements Repository {
@@ -24,6 +24,7 @@ export class DemoRepository implements Repository {
   private read(): Database { return JSON.parse(localStorage.getItem(TEST_DATABASE_KEY) || '{}') as Database; }
   public async list(table: Table): Promise<Row[]> {
     const rows=(this.read()[table] || []).map(row=>{
+      if(table==='photoBatches') return validRecord(table,row.value)?row:{...row,value:{invalid:true}};
       if(table!=='requests') return row;
       const criteria=row.value.criteria as Record<string,unknown> | undefined;
       // Persisted pre-multicampus harness data is decoded at the repository boundary.
@@ -40,6 +41,7 @@ export class DemoRepository implements Repository {
     return rows;
   }
   public async put(table: Table,value: object,id?: string,etag?: string): Promise<string> {
+    if(table==='photoBatches') throw new Error('日別写真は職員画面で保存してください。');
     if(table==='requests' && !validRecord(table,value)) throw new Error('保存データの項目または状態値が不正です。');
     const db=this.read(); const rows=db[table] || (db[table]=[]); const index=rows.findIndex(r=>r.id===id);
     if(this.user.role==='student' && !['profiles','requests','claims','submissions'].includes(table)) throw new Error('職員専用です。');
@@ -50,6 +52,6 @@ export class DemoRepository implements Repository {
     if(index>=0) rows[index]=row; else rows.push(row);
     localStorage.setItem(TEST_DATABASE_KEY,JSON.stringify(db)); return row.id;
   }
-  public async remove(table: Table,id: string): Promise<void> { if(this.user.role!=='staff') throw new Error('職員専用です。'); const db=this.read(); db[table]=db[table].filter(r=>r.id!==id); localStorage.setItem(TEST_DATABASE_KEY,JSON.stringify(db)); }
+  public async remove(table: Table,id: string): Promise<void> { if(table==='photoBatches') throw new Error('日別写真は職員画面で管理してください。'); if(this.user.role!=='staff') throw new Error('職員専用です。'); const db=this.read(); db[table]=db[table].filter(r=>r.id!==id); localStorage.setItem(TEST_DATABASE_KEY,JSON.stringify(db)); }
   public async grantNotice(_id: string,_owner: string): Promise<void> { /* Test harness only: list() enforces recipient scope. */ }
 }

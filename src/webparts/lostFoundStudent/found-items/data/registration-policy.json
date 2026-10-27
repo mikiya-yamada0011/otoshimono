@@ -1,0 +1,39 @@
+{
+  "individualCategories": [
+    "P01_WALLET",
+    "P01_COIN_CASE",
+    "P01_CASH",
+    "P01_OTHER",
+    "P02_SMARTPHONE",
+    "P02_LAPTOP",
+    "P02_TABLET",
+    "P02_EARPHONE_WIRELESS",
+    "P02_EARPHONE_WIRED",
+    "P02_MOBILE_BATTERY",
+    "P02_STORAGE_MEDIA",
+    "P02_CAMERA",
+    "P02_SMARTWATCH",
+    "P02_OTHER",
+    "P04_WATCH",
+    "P04_ACCESSORY",
+    "P10_STUDENT_ID",
+    "P10_TRANSIT_CARD",
+    "P10_OTHER_CARD",
+    "P10_PUBLIC_ID",
+    "P10_OTHER",
+    "P11_KEY",
+    "P11_CARD_KEY",
+    "P11_OTHER"
+  ],
+  "outsideOfficeCategories": [
+    "P09_BICYCLE"
+  ],
+  "individualDescription": "原則7日で警察へ移管する品物（主に貴重品）を1点ずつ掲載します。連絡先が分かる品物はシステムに掲載せず、窓口から直接連絡します。",
+  "photoDescription": "3か月で処分する品物を、窓口・受付日ごとの写真で掲載します。写真は1日につき各窓口3枚までです。自分の物と思われる場合は掲載窓口で確認してください。",
+  "exceptionDescription": "7日で警察へ移管する品物は種類にかかわらず個別登録します。連絡先が分かる品物はシステムに登録しません。",
+  "photoOnlyCategories": [
+    "P08_MEDICAL",
+    "P12_SEAL",
+    "P12_OTHER"
+  ]
+}

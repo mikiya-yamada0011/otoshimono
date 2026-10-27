@@ -1,9 +1,8 @@
+import { isPhotoPublished } from "../utils/photoRetention";
 import { AppService, Snapshot, User, Profile, Item, Request, Claim, Notice, Criteria, validateCriteria, validateSchoolEmail } from '../types/model';
-import { FoundSubmission, FoundSubmissionInput, categoryName, today, COLORS, emptyCriteria } from '../types/model';
-import { CATEGORY_GROUPS } from '../utils/categories';
-import { CAMPUSES } from '../utils/locations';
+import { DailyPhotoBatch, emptyCriteria } from '../types/model';
 import { directRequestKey } from '../utils/lostRecords';
-export type Table = 'items'|'public'|'profiles'|'requests'|'claims'|'notices'|'mail'|'submissions';
+export type Table = 'items'|'public'|'profiles'|'requests'|'claims'|'notices'|'mail'|'submissions'|'photoBatches';
 export interface Row { id: string; author: string; etag?: string; value: Record<string, unknown>; }
 export interface Repository {
   user: User;
@@ -14,7 +13,7 @@ export interface Repository {
 const record = <T,>(row: Row): T => ({...row.value,id:row.id,owner:row.author,etag:row.etag} as T);
 const now = (): string => new Date().toISOString();
 export class StudentService implements AppService {
-  public constructor(public repo: Repository, public domains = ['stu.kobe-u.ac.jp'], public appUrl='') {}
+  public constructor(public repo: Repository, public domains = ['stu.kobe-u.ac.jp'], public appUrl='', private now: () => Date = () => new Date()) {}
   private async profile(): Promise<Profile> {
     const email = validateSchoolEmail(this.repo.user.email,this.domains);
     const row = (await this.repo.list('profiles')).find(r => r.author === this.repo.user.id);
@@ -35,7 +34,8 @@ export class StudentService implements AppService {
     const get = (t: Table): Row[] => (results[tables.indexOf(t)] || []).filter(r=>!r.value.invalid);
     const own = (rows: Row[]): Row[] => rows.filter(r => r.author === this.repo.user.id);
     const requests = own(get('requests')).map(r => record<Request>(r));
-    const claims = own(get('claims')).map(r => record<Claim>(r));
+    const excludedItems = new Set(get('notices').filter(row=>row.value.kind==='VALUABLE').map(row=>String(row.value.itemId)));
+    const claims = own(get('claims')).map(r => record<Claim>(r)).filter(claim=>!excludedItems.has(claim.itemId));
     // Author is assigned by SharePoint, never by a submitted Owner/UserKey field.
     const profiles = get('profiles');
     const email=validateSchoolEmail(this.repo.user.email,this.domains);
@@ -43,31 +43,16 @@ export class StudentService implements AppService {
     const storedProfile=profiles.find(r=>r.author===this.repo.user.id);
     const profile=storedProfile?{...record<Profile>(storedProfile),email}:{id:'authenticated-user',email,window:''};
     return {warnings:results.flatMap((rows,index)=>rows.filter(r=>r.value.invalid).map(r=>`${tables[index]} #${r.id}`)),user:this.repo.user, profile,
-      items:get('public').map(r=>({...record<Item>(r),id:String(r.value.sourceId)})).filter(i=>(!i.valuable && i.status==='保管中')),
-      requests,claims,notices:get('notices').map(r=>({...r.value,id:r.id} as unknown as Notice)).filter(n=>n.owner===this.repo.user.id),
+      items:get('public').map(r=>({...record<Item>(r),id:String(r.value.sourceId)})).filter(i=>(!i.valuable && (i.status==='保管中' || i.status==='移管済み') && !excludedItems.has(i.id))),
+      requests,claims,notices:get('notices').map(r=>({...r.value,id:r.id} as unknown as Notice)).filter(n=>n.owner===this.repo.user.id && n.kind==='MATCH' && !excludedItems.has(n.itemId)),
       mail:[]};
   }
-  public async loadFoundSubmissions(): Promise<FoundSubmission[]> {
-    if(!this.repo.user.id || !this.repo.user.email) throw new Error('学校アカウントでログインしてください。');
-    const email=validateSchoolEmail(this.repo.user.email,this.domains);
-    const rows=(await this.repo.list('submissions')).filter(row=>row.author===this.repo.user.id);
-    if(rows.some(row=>row.value.invalid)) throw new Error('届け出の保存内容を確認できません。窓口に確認してください。');
-    return rows.map<FoundSubmission>(row=>({...record<FoundSubmission>(row),email,itemStatus:(row.value.itemStatus || '') as FoundSubmission['itemStatus'],returnedAt:String(row.value.returnedAt || '')})).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
-  }
-  public async submitFoundItem(input: FoundSubmissionInput): Promise<void> {
-    if(!this.repo.user.id || !this.repo.user.email) throw new Error('学校アカウントでログインしてください。');
-    validateSchoolEmail(this.repo.user.email,this.domains);
-    if(typeof input.receiveReturnEmail!=='boolean') throw new Error('お礼メールを受け取るか選択してください。');
-    const group=CATEGORY_GROUPS.find(candidate=>candidate.code===input.parent);
-    if(!group || !group.children.some(candidate=>candidate.code===input.category)) throw new Error('種類と細かい種類を選択してください。');
-    const campus=CAMPUSES.find(candidate=>candidate.code===input.campus);
-    if(!campus) throw new Error('拾ったキャンパスを選択してください。');
-    if(typeof input.building!=='string' || input.building && !campus.buildings.some(building=>building.code===input.building)) throw new Error('選択したキャンパスの建物・エリアを選択してください。');
-    if(!/^\d{4}-\d{2}-\d{2}$/.test(input.foundOn) || !Number.isFinite(Date.parse(input.foundOn)) || new Date(input.foundOn).toISOString().slice(0,10)!==input.foundOn || input.foundOn>today()) throw new Error('拾った日を正しく入力してください。');
-    if(input.place.length>200 || input.feature.length>1000 || input.colors.some(color=>!COLORS.includes(color))) throw new Error('拾った場所・特徴・色を確認してください。');
-    // SharePoint Author is the identity of the signed-in connection. Never send
-    // a caller-supplied finder email, ownership, decision or publication flag.
-    await this.repo.put('submissions',{parent:input.parent,category:input.category,colors:input.colors,campus:input.campus,building:input.building,foundOn:input.foundOn,place:input.place.trim(),feature:input.feature.trim(),receiveReturnEmail:input.receiveReturnEmail,title:categoryName(input.parent,input.category),createdAt:now()});
+  public async loadDailyPhotoBatches(): Promise<DailyPhotoBatch[]> {
+    const rows = await this.repo.list('photoBatches');
+    if (rows.some(row => row.value.invalid)) throw new Error('日別写真の保存内容を確認できません。窓口に確認してください。');
+    // Photo batches have no inventory item ID. They cannot enter matching or claims.
+    return rows.map(row => record<DailyPhotoBatch>(row)).filter(batch => batch.photos.length > 0 && isPhotoPublished(batch.receivedOn, this.now()))
+      .sort((a, b) => b.receivedOn.localeCompare(a.receivedOn) || a.window.localeCompare(b.window, 'ja'));
   }
   public async saveProfile(input: Omit<Profile,'id'>): Promise<void> {
     const email = validateSchoolEmail(input.email,this.domains);
@@ -100,17 +85,16 @@ export class StudentService implements AppService {
     if(feature.trim().length>1000) throw new Error('特徴は1000文字以内で入力してください。');
     const data=await this.load();
     const item=data.items.find(i=>i.id===itemId && i.status==='保管中');
-    const invitation=data.claims.some(claim=>claim.itemId===itemId && claim.status==='UNAVAILABLE') ? undefined : data.notices.find(n=>n.itemId===itemId && n.requestId===requestId && n.owner===this.repo.user.id && n.kind==='VALUABLE' && !n.unavailable);
-    if(!item && !invitation) throw new Error('この拾得物は現在申し出できません。窓口に確認してください。');
+    if(!item) throw new Error('この拾得物は現在申し出できません。窓口に確認してください。');
     const existing=data.claims.find(c=>c.itemId===itemId && c.owner===this.repo.user.id && c.status==='PENDING');
     if(existing && (existing.requestId || requestId)) throw new Error('この拾得物はすでに申し出ています。「紛失した物」を確認してください。');
     const request=requestId?data.requests.find(r=>r.id===requestId && r.owner===this.repo.user.id):undefined;
     if(requestId && (!request || request.status!=='ACTIVE')) throw new Error('この登録は受付を終了しています。');
     const directCandidate=request && data.claims.some(claim=>request.key===directRequestKey(claim.id) && claim.itemId===itemId);
     if(requestId && !directCandidate && !data.notices.some(notice=>notice.requestId===requestId && notice.itemId===itemId)) throw new Error('この申告への候補通知が見つかりません。');
-    if(requestId && data.claims.some(claim=>claim.requestId===requestId && claim.status==='PENDING')) throw new Error('この登録は受け取り予定です。別の候補に変更する場合は、先に申し込みを取り消してください。');
+    if(requestId && data.claims.some(claim=>claim.requestId===requestId && claim.status==='PENDING' && !data.items.some(item=>item.id===claim.itemId && item.status==='移管済み'))) throw new Error('この登録は受け取り予定です。別の候補に変更する場合は、先に申し込みを取り消してください。');
     const p=await this.profile();
-    const value={owner:this.repo.user.id,email:p.email,itemId,requestId,feature:request?.feature ?? feature.trim(),title:item?.title || (request ? categoryName(request.criteria.parent,request.criteria.category) : '拾得物の受け取り申し込み'),window:item?.window || invitation?.window || '',status:'PENDING',createdAt:now(),returnedAt:''};
+    const value={owner:this.repo.user.id,email:p.email,itemId,requestId,feature:request?.feature ?? feature.trim(),title:item.title,window:item.window,status:'PENDING',createdAt:now(),returnedAt:''};
     const claimId=existing?.id || await this.repo.put('claims',value);
     if(requestId || !item) return;
     // Preserve a saved claim on partial failure. A retry reuses its ID, then

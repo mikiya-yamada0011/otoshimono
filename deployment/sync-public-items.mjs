@@ -37,11 +37,18 @@ try {
     const value=(input,key)=>input[key]===undefined||input[key]===null?'':String(input[key]);
     const status=input=>value(input,'Status') || '保管中';
     const exclusionReason=item=>{
-      if(status(item)!=='保管中')return `状態が「${status(item)}」`;
-      if(item.IsPublic!==true)return '公開可に設定されていない';
+      if(!['保管中','移管済み'].includes(status(item)))return `状態が「${status(item)}」`;
+      if(item.IsPublic!==true)return '連絡先が分かるためシステム掲載対象外';
       if(!value(item,'ParentCategoryCode'))return '種類が未設定';
       return '';
     };
+function parseTransferRecord(item) {
+ if(item.Status!=='移管済み') return {TransferredAt:'',TransferDestination:''};
+ const tail=String(item.InternalNote || '').split('[移管 ').pop();
+ const match=/^[^\s]+ (\d{4}\/\d{2}\/\d{2}) \d{2}:\d{2}\] 移管先：([^\r\n]*)／担当：/.exec(tail);
+ return {TransferredAt:match?.[1] || '',TransferDestination:match?.[2]?.trim() || ''};
+}
+
     const publicColumns=item=>({
       Title:`public:${item.Id}`,
       SourceItemId:String(item.Id),
@@ -55,7 +62,8 @@ try {
       FoundOn:item.FoundOn || null,
       StorageWindow:value(item,'StorageWindow'),
       Feature:value(item,'Feature'),
-      ItemStatus:'保管中',
+      ItemStatus:status(item),
+      ...parseTransferRecord(item),
       SourceCreatedAt:item.Created || null
     });
     const comparable=(row,key)=>{
@@ -65,8 +73,8 @@ try {
       if(key==='SourceCreatedAt')return new Date(String(raw)).toISOString();
       return String(raw);
     };
-    const source=await allPages(`${list(config.foundItemsList)}/items?$top=5000&$select=Id,Title,ParentCategoryCode,CategoryCode,Color,CampusCode,BuildingCode,Place,FoundOn,StorageWindow,Feature,IsPublic,Status,Created&$orderby=Id`);
-    const current=await allPages(`${list('LFPublicItems')}/items?$top=5000&$select=Id,Title,SourceItemId,ItemTitle,ParentCategoryCode,CategoryCode,Colors,CampusCode,BuildingCode,Place,FoundOn,StorageWindow,Feature,ItemStatus,SourceCreatedAt&$orderby=Id`);
+    const source=await allPages(`${list(config.foundItemsList)}/items?$top=5000&$select=Id,Title,ParentCategoryCode,CategoryCode,Color,CampusCode,BuildingCode,Place,FoundOn,StorageWindow,Feature,IsPublic,Status,InternalNote,Created&$orderby=Id`);
+    const current=await allPages(`${list('LFPublicItems')}/items?$top=5000&$select=Id,Title,SourceItemId,ItemTitle,ParentCategoryCode,CategoryCode,Colors,CampusCode,BuildingCode,Place,FoundOn,StorageWindow,Feature,ItemStatus,SourceCreatedAt,TransferredAt,TransferDestination&$orderby=Id`);
     const bySource=new Map();const titles=new Set();
     for(const row of current){
       const sourceId=value(row,'SourceItemId') || value(row,'Title').replace(/^public:/,'');

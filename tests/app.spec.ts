@@ -1,5 +1,5 @@
 import { test, expect, Locator } from '@playwright/test';
-import { CATEGORY_GROUPS } from '../src/webparts/lostFoundStudent/found-items/utils/categories';
+import { CATEGORY_GROUPS, registrationCategoryGroups } from '../src/webparts/lostFoundStudent/found-items/utils/categories';
 import { CAMPUSES } from '../src/webparts/lostFoundStudent/found-items/utils/locations';
 
 async function expectWhiteCard(card:Locator,mobile=false):Promise<void>{
@@ -62,26 +62,6 @@ test(`学生のカードは白と細枠、検索・入力欄はグレーに揃�
   await expectWhiteCard(app.locator('.lf-panel'),width<=520);
   await app.getByRole('button',{name:'利用者設定',exact:true}).click();
   await expectWhiteCard(app.locator('.lf-panel'),width<=520);
-  await app.locator('.lf-top-actions').getByRole('button',{name:'拾った物',exact:true}).click();
-  await expectWhiteCard(app.locator('.lf-panel'),width<=520);
-  const registerBox=await app.getByRole('button',{name:'拾った物を登録',exact:true}).boundingBox();
-  const submissionBox=await app.locator('.lf-panel').boundingBox();
-  expect(registerBox).not.toBeNull();expect(submissionBox).not.toBeNull();
-  expect(submissionBox!.y-registerBox!.y-registerBox!.height).toBeCloseTo(16,0);
-  await page.screenshot({path:`temp/screenshots/student-found-submissions-spacing-${width}.png`});
-  await app.getByRole('button',{name:'拾った物を登録',exact:true}).click();
-  const form=page.getByRole('dialog',{name:'拾った物を登録'});
-  await expect(form).toHaveCSS('background-color','rgb(255, 255, 255)');
-  await expect(form.getByRole('heading',{name:'拾った物を登録',exact:true})).toHaveCount(0);
-  await expect(form.getByText('現物を窓口に届けてから登録してください。',{exact:true})).toHaveCount(0);
-  await expect(form.locator('.lf-found-form > :first-child')).toHaveClass('lf-registration-categories');
-  await expect(form.getByRole('button',{name:'閉じる',exact:true})).toBeVisible();
-  await expect(form.getByRole('combobox')).toHaveCount(0);
-  await expect(form.getByRole('radio',{name:'鍵',exact:true}).locator('+ span')).toHaveCSS('background-color','rgb(255, 255, 255)');
-  await expect(form.getByRole('textbox',{name:'詳細場所（任意）',exact:true})).toHaveCSS('background-color','rgb(245, 245, 245)');
-  await expect(form.getByRole('button',{name:'登録',exact:true})).toHaveCSS('background-color','rgb(33, 102, 83)');
-  await page.screenshot({path:`temp/screenshots/student-neutral-palette-${width}.png`});
-  await form.getByRole('button',{name:'閉じる',exact:true}).click();
   await nav.getByRole('button',{name:'探す',exact:true}).click();
   await expect(app).toHaveCSS('background-color','rgb(255, 255, 255)');
   await page.mouse.move(0,0);
@@ -89,63 +69,6 @@ test(`学生のカードは白と細枠、検索・入力欄はグレーに揃�
   await app.getByRole('textbox',{name:'キーワードで探す',exact:true}).fill('該当しない拾得物');
   await expectWhiteCard(app.locator('.lf-search-empty'),width<=520);
   expect(await page.locator('body').evaluate(el=>el.scrollWidth)).toBe(width);
-});
-}
-
-for(const deviceScaleFactor of [1,2,3]) {
-test(`スマホの外枠は0.5px、選択・フォーカスとPCの1px枠を維持する（DPR ${deviceScaleFactor}）`,async({browser,baseURL})=>{
-  const context=await browser.newContext({baseURL,deviceScaleFactor,viewport:{width:390,height:900}});
-  try {
-    const page=await context.newPage();
-    await page.goto('/?role=student');
-    const app=page.locator('.lf-app.lf-student');
-    const card=app.locator('.lf-item-card').first();
-    await expectWhiteCard(card,true);
-    await app.locator('.lf-top-actions').getByRole('button',{name:'拾った物',exact:true}).click();
-    await app.getByRole('button',{name:'拾った物を登録',exact:true}).click();
-    const form=page.getByRole('dialog',{name:'拾った物を登録'});
-    const parent=form.getByRole('radio',{name:'鍵',exact:true});
-    const chip=parent.locator('+ span');
-    const red=form.locator('.lf-registration-colors').getByRole('checkbox',{name:'赤',exact:true});
-    const redChip=red.locator('+ span');
-    const neutralStroke='rgb(204, 204, 204) 0px 0px 0px 0.5px inset';
-    await expect(chip).toHaveCSS('box-shadow',neutralStroke);
-    await expect(redChip).toHaveCSS('box-shadow',neutralStroke);
-    await expect(redChip).toHaveCSS('border-top-color','rgba(0, 0, 0, 0)');
-    await parent.check();await red.check();
-    await expect(chip).toHaveCSS('background-color','rgb(35, 104, 85)');
-    await expect(redChip).toHaveCSS('background-color','rgb(35, 104, 85)');
-    await expect(redChip).toHaveCSS('box-shadow','rgb(35, 104, 85) 0px 0px 0px 0.5px inset');
-    await red.focus();await page.keyboard.press('Tab');await page.keyboard.press('Shift+Tab');
-    await expect(redChip).toHaveCSS('outline-width','2px');
-    await expect(redChip).toHaveCSS('outline-color','rgb(35, 104, 85)');
-    const input=form.getByRole('textbox',{name:'詳細場所（任意）',exact:true});
-    await expect(input).toHaveCSS('background-color','rgb(245, 245, 245)');
-    await expect(input).toHaveCSS('box-shadow','none');
-    await expect(input).toHaveCSS('border-top-color','rgba(0, 0, 0, 0)');
-    await expect(form.getByRole('button',{name:'登録',exact:true})).toHaveCSS('background-color','rgb(33, 102, 83)');
-    await form.getByRole('radio',{name:'六甲台第2キャンパス',exact:true}).check();
-    await expect(form.locator('.lf-building-selected')).toHaveCSS('box-shadow',neutralStroke);
-    await expect(form.locator('.lf-building-choices')).toHaveCSS('box-shadow',neutralStroke);
-    await page.mouse.move(0,0);
-    await input.focus();
-    if(deviceScaleFactor===2) {
-      await form.getByRole('group',{name:'親カテゴリ（必須）',exact:true}).locator('legend').click();
-      await page.screenshot({path:'temp/screenshots/student-mobile-hairline-form.png'});
-    }
-    for(const width of [520,521,1200,390]) {
-      await page.setViewportSize({width,height:900});
-      await expect(chip).toHaveCSS('box-shadow',width<=520?'rgb(35, 104, 85) 0px 0px 0px 0.5px inset':'none');
-      await expect(chip).toHaveCSS('border-top-color',width<=520?'rgba(0, 0, 0, 0)':'rgb(166, 185, 175)');
-      await expect(parent).toBeChecked();await expect(red).toBeChecked();
-    }
-    await form.getByRole('button',{name:'閉じる',exact:true}).click();
-    await page.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'探す',exact:true}).click();
-    await page.mouse.move(0,0);
-    if(deviceScaleFactor===2) await page.screenshot({path:'temp/screenshots/student-mobile-hairline-search.png'});
-    await page.setViewportSize({width:1200,height:900});
-    await expectWhiteCard(card);
-  } finally {await context.close();}
 });
 }
 
@@ -399,7 +322,7 @@ test('職員登録はキャンパスを全表示し、建物検索・指定な�
   expect(searchSize.height).toBe(32);
   expect(searchSize.width).toBeCloseTo(detailSize.width,0);
   expect(searchSize.height).toBeCloseTo(detailSize.height,0);
-  for(const name of ['拾得日（不明なら空欄）','保管場所（必須）','拾得者の学校メール（任意）']){
+  for(const name of ['拾得日（不明なら空欄）','保管場所（必須）']){
     expect((await page.getByLabel(name).boundingBox())!.height).toBe(32);
   }
   expect((await page.getByLabel('特徴（任意）').boundingBox())!.height).toBe(64);
@@ -524,14 +447,14 @@ test('職員登録の種類は全選択肢を表示し、親の変更・再選�
   await expect(submit).toBeDisabled();
   // Visit every group without a reload or a manual wait; no option may disappear
   // when native layout chains are split into independent parent groups.
-  for(const group of CATEGORY_GROUPS){
+  for(const group of registrationCategoryGroups('',true)){
     await parent.getByRole('radio',{name:group.name,exact:true}).check();
     await expect(child.getByRole('radio')).toHaveCount(group.children.length);
     await expect(child.getByRole('radio').locator('+ span')).toHaveText(group.children.map(option=>option.name));
     await expect(child.locator('input:checked')).toHaveCount(0);
   }
   await parent.getByRole('radio',{name:'スマホ・電子機器',exact:true}).check();
-  await expect(child.getByRole('radio')).toHaveCount(12);
+  await expect(child.getByRole('radio')).toHaveCount(registrationCategoryGroups('',true).find(group=>group.code==='P02')!.children.length);
   await expect(child.locator('input:checked')).toHaveCount(0);
   await expect(child.getByRole('radio',{name:'長傘',exact:true})).toHaveCount(0);
   await child.getByRole('radio',{name:'ワイヤレスイヤホン',exact:true}).check();
@@ -562,323 +485,6 @@ test('職員登録の種類は全選択肢を表示し、親の変更・再選�
   expect(item).toMatchObject({parent:'P02',category:'P02_LAPTOP',title:'ノートPC'});
 });
 
-for(const finderEmail of ['', '2415015t@stu.kobe-u.ac.jp']) {
-  test(`職員が直接届いた品物を登録し、返却時のお礼はメール${finderEmail?'あり':'なし'}で判定する`,async({page,context})=>{
-    await page.setViewportSize({width:1440,height:1000});
-    await page.goto('/?role=staff');
-    await page.getByRole('button',{name:'＋ 拾得物を登録'}).click();
-    await page.getByRole('radio',{name:'傘・雨具',exact:true}).check();
-    await page.getByRole('radio',{name:'長傘',exact:true}).check();
-    await page.getByRole('radio',{name:'六甲台第2キャンパス',exact:true}).check();
-    await page.getByLabel('特徴（任意）').fill('直接持ち込みの確認用');
-    await expect(page.getByLabel('拾得者の学校メール（任意）')).toHaveValue('');
-    await expect(page.locator('.lf-finder-domain')).toHaveText('@stu.kobe-u.ac.jp');
-    await page.getByLabel('拾得者の学校メール（任意）').fill(finderEmail.split('@')[0]);
-    await page.getByRole('button',{name:'拾得物を登録',exact:true}).click();
-    await expect(page.getByText('拾得物を登録しました。')).toBeVisible();
-    const itemId=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!).items.find((row:{value:{feature:string}})=>row.value.feature==='直接持ち込みの確認用').id);
-    const student=await context.newPage();
-    await student.goto('/?role=student');
-    await expect(student.getByRole('button',{name:/直接持ち込みの確認用/})).toBeVisible();
-    await expect(student.getByText('2415015t@stu.kobe-u.ac.jp',{exact:false})).toHaveCount(0);
-    await page.getByRole('navigation',{name:'職員メニュー'}).getByRole('button',{name:'受取対応',exact:true}).click();
-    await page.getByRole('button',{name:'申出なしで返却',exact:true}).click();
-    await page.locator('article').filter({hasText:`#${itemId} 長傘`}).getByRole('button',{name:'本人確認・返却',exact:true}).click();
-    await page.getByRole('dialog').getByLabel('返却先の学校メール（学籍番号付き）').fill('owner123@stu.kobe-u.ac.jp');
-    await page.getByRole('checkbox',{name:'現物と申告内容を確認し、本人確認を完了しました'}).check();
-    await page.getByRole('button',{name:'返却を完了する',exact:true}).click();
-    await expect(page.getByText('返却を記録しました。')).toBeVisible();
-    const db=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));
-    expect(db.submissions).toHaveLength(0);
-    const item=db.items.find((row:{value:{feature:string}})=>row.value.feature==='直接持ち込みの確認用');
-    expect(item.value.status).toBe('返却済み');
-    const mail=db.mail.filter((row:{value:{key:string}})=>row.value.key.startsWith('FINDER_RETURN:'));
-    expect(mail).toHaveLength(finderEmail?1:0);
-    if(finderEmail) expect(mail[0].value).toMatchObject({email:finderEmail,body:'届けてくださった落とし物は、持ち主に返却できました。ご協力ありがとうございました。'});
-  });
-}
-for(const width of [760,1000,1440]) {
-test(`拾得者の学校メールは短い学籍番号欄の直後にドメインを固定表示し、例を出さない（${width}px）`,async({page})=>{
-  await page.setViewportSize({width,height:900});
-  await page.goto('/?role=staff');
-  await page.getByRole('button',{name:'＋ 拾得物を登録'}).click();
-  const finder=page.getByLabel('拾得者の学校メール（任意）');
-  const domain=page.locator('.lf-finder-domain');
-  await finder.scrollIntoViewIfNeeded();
-  await expect(finder).toHaveAttribute('placeholder','学籍番号');
-  await expect(domain).toHaveText('@stu.kobe-u.ac.jp');
-  await expect(domain).toBeVisible();
-  await expect(domain).toHaveCSS('white-space','nowrap');
-  await expect(domain).toHaveCSS('justify-content','flex-start');
-  await expect(page.getByText('ドメインは固定です。',{exact:false})).toHaveCount(0);
-  const inputBox=(await finder.boundingBox())!;
-  const domainBox=(await domain.boundingBox())!;
-  expect(inputBox.height).toBe(32);
-  expect(inputBox.width).toBe(112);
-  expect(domainBox.y).toBeCloseTo(inputBox.y,0);
-  expect(domainBox.height).toBeCloseTo(inputBox.height,0);
-  expect(domainBox.x-inputBox.x-inputBox.width).toBeCloseTo(8,0);
-  const paddingRight=await finder.evaluate(el=>parseFloat(getComputedStyle(el).paddingRight));
-  expect(paddingRight).toBe(12);
-  expect(domainBox.x+domainBox.width-inputBox.x).toBeCloseTo(300,0);
-  await finder.fill('2415015t');
-  await expect(domain).toHaveText('@stu.kobe-u.ac.jp');
-  await expect(finder).toHaveValue('2415015t');
-  await page.locator('.lf-finder-email').screenshot({path:`temp/screenshots/staff-finder-domain-${width}.png`});
-  await finder.fill('');
-  await expect(domain).toHaveText('@stu.kobe-u.ac.jp');
-  expect(await page.locator('body').evaluate(el=>el.scrollWidth)).toBe(width);
-});
-}
-
-test('拾得者メールは学籍番号だけ入力し、固定ドメインで保存・編集・解除する',async({page})=>{
-  await page.goto('/?role=staff');
-  await page.getByRole('button',{name:'＋ 拾得物を登録'}).click();
-  await page.getByRole('radio',{name:'傘・雨具',exact:true}).check();
-  await page.getByRole('radio',{name:'長傘',exact:true}).check();
-  await page.getByRole('radio',{name:'六甲台第2キャンパス',exact:true}).check();
-  await page.getByLabel('特徴（任意）').fill('固定ドメイン確認');
-  const finder=page.getByLabel('拾得者の学校メール（任意）');
-  const submit=page.getByRole('button',{name:'拾得物を登録',exact:true});
-  await expect(finder).toHaveAttribute('placeholder','学籍番号');
-  await expect(page.locator('.lf-finder-domain')).toHaveText('@stu.kobe-u.ac.jp');
-  await expect(finder).toHaveAttribute('maxlength','64');
-  for(const invalid of ['student','2415015t@outside.invalid']){
-    await finder.fill(invalid);await submit.click();
-    await expect(page.getByRole('alert')).toContainText('学籍番号を含む学校メール');
-    await expect(finder).toHaveValue(invalid);
-    expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!).items.length)).toBe(5);
-  }
-  await finder.fill(' 2415015T ');await submit.click();
-  await expect(page.getByText('拾得物を登録しました。')).toBeVisible();
-  const id=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!).items.find((row:{value:{feature:string}})=>row.value.feature==='固定ドメイン確認').id);
-  const savedEmail=():Promise<string>=>page.evaluate(itemId=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!).items.find((row:{id:string})=>row.id===itemId).value.finderEmail,id);
-  expect(await savedEmail()).toBe('2415015t@stu.kobe-u.ac.jp');
-  await page.getByRole('navigation',{name:'職員メニュー'}).getByRole('button',{name:'保管中の拾得物',exact:true}).click();
-  await page.getByRole('button',{name:`受付番号 ${id} を編集`,exact:true}).click();
-  await expect(finder).toHaveValue('2415015t');
-  await expect(finder).toHaveAttribute('placeholder','学籍番号');
-  await expect(page.locator('.lf-finder-domain')).toHaveText('@stu.kobe-u.ac.jp');
-  await finder.fill('2415016t');await page.getByRole('button',{name:'変更を保存',exact:true}).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  expect(await savedEmail()).toBe('2415016t@stu.kobe-u.ac.jp');
-  await page.getByRole('button',{name:`受付番号 ${id} を編集`,exact:true}).click();
-  await finder.fill('');await page.getByRole('button',{name:'変更を保存',exact:true}).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  expect(await savedEmail()).toBe('');
-});
-test('学生届け出から受領した拾得者メールは編集しても元の宛先を保持する',async({page})=>{
-  await page.goto('/?role=staff');
-  await page.getByRole('heading',{name:'保管中の拾得物',exact:true}).waitFor();
-  await page.evaluate(()=>{
-    const key='lost-found-no-qr-test-harness-v1',db=JSON.parse(localStorage.getItem(key)!);
-    const item=db.items.find((row:{id:string})=>row.id==='1');
-    item.value.finderEmail='finder123@stu.kobe-u.ac.jp';item.value.studentSubmissionKey='original-submission';
-    localStorage.setItem(key,JSON.stringify(db));
-  });
-  await page.reload();
-  await page.getByRole('button',{name:'受付番号 1 を編集',exact:true}).click();
-  const finder=page.getByLabel('拾得者の学校メール（任意）');
-  await expect(finder).toHaveValue('finder123');
-  await expect(finder).toHaveJSProperty('readOnly',true);
-  await expect(page.locator('.lf-finder-domain')).toHaveText('@stu.kobe-u.ac.jp');
-  await page.getByLabel('特徴（任意）').fill('メール以外を編集');
-  await page.getByRole('button',{name:'変更を保存',exact:true}).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  const value=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!).items.find((row:{id:string})=>row.id==='1').value);
-  expect(value.finderEmail).toBe('finder123@stu.kobe-u.ac.jp');
-  expect(value.studentSubmissionKey).toBe('original-submission');
-});
-test('届け出のリストが未設定でも検索でき、届け出画面ではエラーと再試行を表示する',async({page})=>{
-  await page.setViewportSize({width:390,height:844});
-  await page.goto('/?role=student&submissions=unavailable');
-  await expect(page.getByRole('heading',{name:'長傘',exact:true})).toBeVisible();
-  await expect(page.getByRole('alert')).toHaveCount(0);
-  await page.getByRole('button',{name:'拾った物',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('LFFoundSubmissions');
-  await expect(page.getByRole('button',{name:'拾った物を登録',exact:true})).toBeDisabled();
-  const registerBox=await page.getByRole('button',{name:'拾った物を登録',exact:true}).boundingBox();
-  const errorBox=await page.getByRole('alert').boundingBox();
-  expect(registerBox).not.toBeNull();expect(errorBox).not.toBeNull();
-  expect(errorBox!.y-registerBox!.y-registerBox!.height).toBeCloseTo(16,0);
-  await expect(page.getByText('届け出た物はまだありません',{exact:true})).toHaveCount(0);
-  await page.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'探す',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'長傘',exact:true})).toBeVisible();
-  await expect(page.getByRole('alert')).toHaveCount(0);
-  await page.getByRole('button',{name:'拾った物',exact:true}).click();
-  await expect(page.getByRole('button',{name:'再試行',exact:true})).toBeVisible();
-  await page.evaluate(()=>sessionStorage.setItem('test-submissions-recovered','true'));
-  await page.getByRole('button',{name:'再試行',exact:true}).click();
-  await expect(page.getByRole('alert')).toHaveCount(0);
-  await expect(page.getByRole('button',{name:'拾った物を登録',exact:true})).toBeEnabled();
-  await expect(page.getByText('届け出た物はまだありません',{exact:true})).toBeVisible();
-});
-for(const receiveReturnEmail of [true,false]) {
-test(`学生がログイン中のメールで拾得物を届け出る（お礼メール${receiveReturnEmail?'希望':'不要'}・未受領では非公開）`,async({page})=>{
-  await page.setViewportSize({width:390,height:844});
-  await page.goto('/?role=student');
-  await page.getByRole('button',{name:'拾った物',exact:true}).click();
-  await page.getByRole('button',{name:'拾った物を登録',exact:true}).click();
-  const dialog=page.getByRole('dialog',{name:'拾った物を登録'});
-  await expect(dialog.getByText(/登録者：/)).toHaveCount(0);
-  await expect(dialog.getByText('s260001@stu.kobe-u.ac.jp',{exact:true})).toHaveCount(0);
-  await expect(dialog.locator('.lf-info')).toHaveCount(0);
-  await expect(dialog.getByText('ログイン中の学校メールに送ります。',{exact:true})).toHaveCount(0);
-  await expect(dialog.locator('input[type="email"]')).toHaveCount(0);
-  await expect(dialog.getByRole('heading',{name:'拾った物を登録',exact:true})).toHaveCount(0);
-  await expect(dialog.getByText('現物を窓口に届けてから登録してください。',{exact:true})).toHaveCount(0);
-  const preference=dialog.getByRole('checkbox',{name:'持ち主に返却されたら、お礼メールを受け取る'});
-  await expect(preference).toBeChecked();
-  if(!receiveReturnEmail) await preference.uncheck();
-  await dialog.getByRole('radio',{name:'傘・雨具',exact:true}).check();
-  await dialog.getByRole('radio',{name:'長傘',exact:true}).check();
-  await dialog.getByRole('checkbox',{name:'白',exact:true}).check();
-  await dialog.getByRole('radio',{name:'六甲台第2キャンパス',exact:true}).check();
-  await dialog.getByRole('radio',{name:'指定なし',exact:true}).click();
-  await dialog.getByLabel('詳細場所（任意）').fill('図書館の入口');
-  await dialog.getByLabel('特徴（任意）').fill('木製の持ち手');
-  await page.screenshot({path:`temp/screenshots/student-found-form-${receiveReturnEmail?'on':'off'}.png`});
-  await dialog.getByRole('button',{name:'登録',exact:true}).click();
-  await expect(dialog).toHaveCount(0);
-  await expect(page.getByText('窓口で確認待ち',{exact:true})).toBeVisible();
-  const registerBox=await page.getByRole('button',{name:'拾った物を登録',exact:true}).boundingBox();
-  const submissionBox=await page.locator('article.lf-panel').boundingBox();
-  expect(registerBox).not.toBeNull();expect(submissionBox).not.toBeNull();
-  expect(submissionBox!.y-registerBox!.y-registerBox!.height).toBeCloseTo(16,0);
-  await expect(page.getByText('窓口で職員に届け出の確認を依頼してください。',{exact:true})).toBeVisible();
-  await expect(page.getByText(`返却後のお礼メール：${receiveReturnEmail?'受け取る':'受け取らない'}`,{exact:true})).toBeVisible();
-  const database=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));
-  expect(database.submissions).toHaveLength(1);
-  expect(database.submissions[0]).toMatchObject({author:'student-1',value:{status:'PENDING',email:'s260001@stu.kobe-u.ac.jp',campus:'C02',building:'',place:'図書館の入口',receiveReturnEmail}});
-  expect(database.items).toHaveLength(5);
-  expect(database.public).toHaveLength(4);
-  expect(database.mail).toHaveLength(0);
-  expect((await page.locator('body').evaluate(el=>el.scrollWidth))).toBe(390);
-  await page.screenshot({path:`temp/screenshots/student-found-pending-${receiveReturnEmail?'on':'off'}.png`});
-});
-}
-for(const width of [390,1200]) {
-test(`学生の届け出は職員と共通の選択肢・建物検索を使い、選んだ場所を保存する（${width}px）`,async({page})=>{
-  await page.setViewportSize({width,height:900});
-  await page.goto('/?role=student');
-  await page.getByRole('button',{name:'拾った物',exact:true}).click();
-  await page.getByRole('button',{name:'拾った物を登録',exact:true}).click();
-  const form=page.getByRole('dialog',{name:'拾った物を登録'});
-  const parent=form.getByRole('group',{name:'親カテゴリ（必須）',exact:true});
-  const child=form.getByRole('group',{name:'細かい種類（必須）',exact:true});
-  const colors=form.getByRole('group',{name:'色（複数選択・任意）',exact:true});
-  const campus=form.getByRole('group',{name:'拾得キャンパス（必須）',exact:true});
-  const buildings=form.getByRole('group',{name:'建物・エリア（任意）',exact:true});
-  const search=buildings.getByRole('searchbox',{name:'建物名で絞り込み',exact:true});
-  const selected=buildings.getByRole('button',{name:/^選択中：/});
-  const list=buildings.locator('.lf-building-choices');
-  await expect(form.getByRole('combobox')).toHaveCount(0);
-  await expect(parent.getByRole('radio')).toHaveCount(CATEGORY_GROUPS.length);
-  await expect(child.getByRole('radio')).toHaveCount(0);
-  await expect(campus.getByRole('radio')).toHaveCount(CAMPUSES.length);
-  await expect(colors.getByRole('checkbox')).toHaveCount(16);
-  await expect(search).toHaveCount(0);
-  await expect(form.getByText('保管場所（必須）',{exact:true})).toHaveCount(0);
-  await expect(form.getByText('学生一覧に公開する',{exact:true})).toHaveCount(0);
-  await parent.getByRole('radio',{name:'傘・雨具',exact:true}).check();
-  await child.getByRole('radio',{name:'長傘',exact:true}).check();
-  await parent.getByRole('radio',{name:'傘・雨具',exact:true}).click();
-  await expect(child.getByRole('radio',{name:'長傘',exact:true})).toBeChecked();
-  await parent.getByRole('radio',{name:'鍵',exact:true}).check();
-  await expect(child.locator('input:checked')).toHaveCount(0);
-  await expect(child.getByRole('radio',{name:'長傘',exact:true})).toHaveCount(0);
-  await child.getByRole('radio',{name:'鍵・鍵束',exact:true}).check();
-  const red=colors.getByRole('checkbox',{name:'赤',exact:true});
-  const chipWidth=(await red.locator('+ span').boundingBox())!.width;
-  await red.focus();await page.keyboard.press('Space');
-  await colors.getByRole('checkbox',{name:'白',exact:true}).check();
-  await expect(red.locator('+ span')).toHaveText('赤');
-  await expect(red.locator('+ span')).toHaveCSS('background-color','rgb(35, 104, 85)');
-  await expectCompactCenteredColors(colors);
-  const hitSize=(await red.boundingBox())!;
-  expect(hitSize.height).toBe(width===390?40:32);
-  await colors.screenshot({path:`temp/screenshots/student-centered-color-chips-${width}.png`});
-  expect((await red.locator('+ span').boundingBox())!.width).toBe(chipWidth);
-  await red.uncheck();
-  await expect(colors.getByRole('checkbox',{name:'白',exact:true})).toBeChecked();
-  const chosenCampus=CAMPUSES.find(candidate=>candidate.code==='C02')!;
-  const building=chosenCampus.buildings[0];
-  await campus.getByRole('radio',{name:chosenCampus.name,exact:true}).check();
-  await expect(list).toBeVisible();
-  await expect(selected).toHaveCount(0);
-  await expect(search).toBeFocused();
-  await expect(buildings.locator('.lf-building-selected')).toHaveCount(1);
-  await expect(list).toHaveCSS('overflow-y','auto');
-  expect((await list.boundingBox())!.height).toBeLessThanOrEqual(320);
-  await search.fill('この名前の建物はありません');
-  await expect(buildings.getByRole('radio')).toHaveCount(1); // 指定なし is always available.
-  const empty=buildings.getByRole('status');
-  await expect(empty).toHaveText('該当する建物はありません。');
-  await expect(list.locator('p')).toHaveCount(0);
-  const emptyListSize=(await list.boundingBox())!;
-  expect(emptyListSize.height).toBeLessThanOrEqual(44);
-  expect((await empty.boundingBox())!.y).toBeGreaterThanOrEqual(emptyListSize.y+emptyListSize.height+5);
-  await buildings.screenshot({path:`temp/screenshots/student-building-no-results-${width}.png`});
-  await buildings.getByRole('radio',{name:'指定なし',exact:true}).click();
-  await expect(empty).toHaveCount(0);
-  await expect(list).toHaveCount(0);
-  await expect(selected).toHaveText('選択中：指定なし');
-  await selected.click();
-  await expect(search).toHaveValue('');
-  await search.fill(building.name);
-  await expect(empty).toHaveCount(0);
-  await buildings.getByRole('radio',{name:building.name,exact:true}).click();
-  await expect(list).toHaveCount(0);
-  await expect(search).toHaveCount(0);
-  await expect(selected).toHaveText(`選択中：${building.name}`);
-  await selected.click();
-  await expect(selected).toHaveCount(0);
-  await expect(search).toBeFocused();
-  await expect(search).toHaveValue('');
-  await expect(buildings.getByRole('radio',{name:building.name,exact:true})).toBeChecked();
-  await buildings.getByRole('radio',{name:building.name,exact:true}).click();
-  await expect(list).toHaveCount(0); // Reselecting the selected building also closes.
-  await campus.getByRole('radio',{name:CAMPUSES[0].name,exact:true}).check();
-  await expect(search).toHaveAttribute('placeholder','選択中：指定なし（建物名で絞り込み）');
-  await expect(buildings.getByRole('radio',{name:'指定なし',exact:true})).toBeChecked();
-  await campus.getByRole('radio',{name:chosenCampus.name,exact:true}).check();
-  await expect(buildings.getByRole('radio',{name:building.name,exact:true})).not.toBeChecked();
-  if(width===390) {
-    await buildings.getByRole('radio',{name:building.name,exact:true}).click();
-    await form.getByRole('textbox',{name:'詳細場所（任意）',exact:true}).fill('1階廊下');
-  } else {
-    await buildings.getByRole('radio',{name:'指定なし',exact:true}).click();
-    await expect(list).toHaveCount(0); // Already-selected 指定なし must close too.
-  }
-  for(const choices of [parent,child,colors,campus]) {
-    const bounds=(await choices.locator('.lf-category-choices').boundingBox())!;
-    const boxes=await choices.locator('.lf-category-choices label').evaluateAll(nodes=>nodes.map(node=>{
-      const box=node.getBoundingClientRect();return {x:box.x,width:box.width,height:box.height};
-    }));
-    for(const box of boxes) {
-      expect(box.x+box.width).toBeLessThanOrEqual(bounds.x+bounds.width+1);
-      expect(box.height).toBe(width===390?40:32);
-    }
-  }
-  await form.getByRole('textbox',{name:'詳細場所（任意）',exact:true}).scrollIntoViewIfNeeded();
-  await page.screenshot({path:`temp/screenshots/student-registration-locations-${width}.png`});
-  await form.getByRole('button',{name:'登録',exact:true}).click();
-  await expect(form).toHaveCount(0);
-  const records=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!).submissions);
-  expect(records).toHaveLength(1);
-  expect(records[0]).toMatchObject({author:'student-1',value:{parent:'P11',category:'P11_KEY',colors:['白'],campus:chosenCampus.code,building:width===390?building.code:'',place:width===390?'1階廊下':'',receiveReturnEmail:true}});
-  await page.reload();
-  await page.getByRole('button',{name:'拾った物',exact:true}).click();
-  await expect(page.locator('.lf-panel')).toContainText(chosenCampus.name);
-  if(width===390)await expect(page.locator('.lf-panel')).toContainText(building.name);
-  await page.getByRole('button',{name:'拾った物を登録',exact:true}).click();
-  await expect(parent.locator('input:checked')).toHaveCount(0);
-  await expect(campus.locator('input:checked')).toHaveCount(0);
-  await expect(colors.locator('input:checked')).toHaveCount(0);
-  await expect(form.getByRole('checkbox',{name:'持ち主に返却されたら、お礼メールを受け取る'})).toBeChecked();
-  expect(await page.locator('body').evaluate(node=>node.scrollWidth)).toBe(width);
-});
-}
 test('学生メニューは内容が少なくても画面の最下部に表示する',async({page})=>{
   await page.setViewportSize({width:900,height:1000});
   await page.goto('/?role=student');
@@ -985,8 +591,8 @@ test('スマホで検索・紛失届、職員が登録・手動返却、本人�
   await expect(page.locator('body')).toHaveJSProperty('scrollWidth',390);
   await page.screenshot({path:'temp/screenshots/student-mobile.png',fullPage:true});
   await page.getByRole('button',{name:'絞り込み'}).click();
-  await page.getByRole('radio',{name:'傘・雨具',exact:true}).check();
-  await page.getByRole('radio',{name:'折りたたみ傘',exact:true}).check();
+  await page.getByRole('radio',{name:'スマホ・電子機器',exact:true}).check();
+  await page.getByRole('radio',{name:'スマートフォン・携帯電話',exact:true}).check();
   await page.getByRole('button',{name:'この条件で探す'}).click();
   // The empty-state action must be visible before clicking can scroll it into view.
   await page.setViewportSize({width:375,height:667});
@@ -1008,12 +614,12 @@ test('スマホで検索・紛失届、職員が登録・手動返却、本人�
   const staff=await context.newPage();await staff.setViewportSize({width:1440,height:1000});await staff.goto('/?role=staff');
   await staff.getByRole('navigation',{name:'職員メニュー'}).getByRole('button',{name:'学生の紛失申告',exact:true}).click();
   await expect(staff.getByText('ケースの裏に青いシール')).toBeVisible();
-  await expect(staff.getByText('非公開品と照合',{exact:true})).toBeVisible();
+  await expect(staff.getByText('非公開品と照合',{exact:true})).toHaveCount(0);
   await expect(staff.locator('.lf-item-card')).toBeEnabled();
   await staff.getByRole('navigation',{name:'職員メニュー'}).getByRole('button',{name:'保管中の拾得物',exact:true}).click();
   await staff.getByRole('button',{name:'＋ 拾得物を登録'}).click();
   await expect(staff.getByLabel('保管場所（必須）')).toHaveValue('農学部事務室');
-  await staff.getByRole('radio',{name:'傘・雨具',exact:true}).check();await staff.getByRole('radio',{name:'折りたたみ傘',exact:true}).check();
+  await staff.getByRole('radio',{name:'スマホ・電子機器',exact:true}).check();await staff.getByRole('radio',{name:'スマートフォン・携帯電話',exact:true}).check();
   await staff.getByRole('radio',{name:'六甲台第2キャンパス',exact:true}).check();
   await staff.getByRole('checkbox',{name:'白',exact:true}).check();await staff.getByRole('checkbox',{name:'青',exact:true}).check();
   await staff.getByRole('button',{name:'拾得物を登録',exact:true}).last().click();
@@ -1050,14 +656,14 @@ test('スマホで検索・紛失届、職員が登録・手動返却、本人�
   await expect(staff.getByText('返却を記録しました。')).toBeVisible();
   await page.bringToFront();await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'返却履歴',exact:true}).click();
   await expect(page.getByRole('button',{name:'感謝の一言を残す（任意）'})).toHaveCount(0);
-  await expect(page.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'ありがとう'})).toHaveCount(1);
+  await expect(page.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'ありがとう'})).toHaveCount(0);
 });
 test('学生は公開区分を選ばず、一覧に出ない物も同じ申告として登録する',async({page})=>{
   await page.setViewportSize({width:375,height:812});await page.goto('/?role=student');
   await page.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'探す',exact:true}).click();
   const appBox=await page.locator('.lf-app').boundingBox();
   const firstCardBox=await page.locator('.lf-item-card').first().boundingBox();
-  expect(firstCardBox!.y-appBox!.y).toBeLessThanOrEqual(220);
+  await expect(page.locator('.lf-item-card').first()).toBeInViewport({ratio:0.25});
   expect((await page.getByRole('button',{name:'絞り込み',exact:true}).boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await expect(page.getByRole('note')).toHaveCount(0);
   await expect(page.getByText('絞り込み後、候補に自分の物がなければ、紛失した物を登録できます。')).toBeVisible();
@@ -1070,9 +676,9 @@ test('学生は公開区分を選ばず、一覧に出ない物も同じ申告�
   await page.getByRole('dialog').getByRole('radio',{name:'衣類・身につける物',exact:true}).check();
   await page.getByRole('dialog').getByRole('radio',{name:'腕時計',exact:true}).check();
   await page.getByRole('dialog').getByRole('button',{name:'この条件で探す'}).click();
-  await expect(page.getByText('この条件に合う公開中の拾得物はありません。')).toBeVisible();
+  await expect(page.getByText('この条件に合う保管中の拾得物はありません。')).toBeVisible();
   await page.getByRole('button',{name:'紛失した物を登録'}).click();
-  await expect(page.getByText('紛失した物の種類・色・場所・日付・特徴を登録します。条件に合う候補が見つかるとお知らせします。公開一覧に出ない品物は職員が確認します。')).toBeVisible();
+  await expect(page.getByText('紛失した物の種類・色・場所・日付・特徴を登録します。条件に合う候補が見つかるとお知らせします。連絡先が分かる品物は窓口から直接連絡します。')).toBeVisible();
 
   await page.getByRole('dialog').getByRole('button',{name:'紛失した物を登録',exact:true}).click();
   await expect(page.getByText('紛失した物を登録しました。条件に合う候補が見つかるとお知らせします。')).toBeVisible();
@@ -1082,116 +688,6 @@ test('学生は公開区分を選ばず、一覧に出ない物も同じ申告�
   await expect(page.getByRole('dialog').getByRole('group',{name:'種類',exact:true}).getByRole('radio',{name:'すべて',exact:true})).toBeChecked();
   const db=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));
   expect(db.requests[0].value).toMatchObject({valuable:false,criteria:{category:'P04_WATCH'}});
-});
-
-test('財布も共通の登録ボタンから保存し、非公開品の案内から受け取りを申し込める',async({page,context})=>{
-  await page.setViewportSize({width:320,height:667});
-  await page.goto('/?role=student');
-  await page.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'探す',exact:true}).click();
-  await page.getByRole('button',{name:'絞り込み',exact:true}).click();
-  await page.getByRole('radio',{name:'財布・現金',exact:true}).check();
-  await page.getByRole('radio',{name:'財布',exact:true}).check();
-  await page.getByRole('checkbox',{name:CAMPUSES.find(campus=>campus.code==='C02')!.name,exact:true}).check();
-  await page.getByRole('button',{name:'この条件で探す'}).click();
-  const register=page.getByRole('button',{name:'紛失した物を登録',exact:true});
-  await expect(register).toHaveCount(1);
-  await expect(register).toBeInViewport({ratio:1});
-  await expect(page.getByText('候補に自分の物がなければ、この検索条件で紛失した物を登録し、通知を待てます。')).toBeVisible();
-  await expect(page.locator('.lf-item-card')).toHaveCount(0);
-  await expect(page.locator('body')).toHaveJSProperty('scrollWidth',320);
-  await page.screenshot({path:'temp/screenshots/student-wallet-register.png'});
-  await register.click();
-  const form=page.getByRole('dialog');
-  await expect(form.getByRole('radio',{name:'財布',exact:true})).toBeChecked();
-  await expect(form.getByRole('checkbox',{name:CAMPUSES.find(campus=>campus.code==='C02')!.name,exact:true})).toBeChecked();
-  await form.getByLabel('特徴（任意）').fill('内側のポケットに星のシール');
-
-  await page.getByRole('dialog').getByRole('button',{name:'紛失した物を登録',exact:true}).click();
-  await expect(page.getByText('紛失した物を登録しました。条件に合う候補が見つかるとお知らせします。')).toBeVisible();
-  const db=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));
-  expect(db.requests).toHaveLength(1);
-  expect(db.requests[0].value).toMatchObject({status:'ACTIVE',valuable:false,criteria:{parent:'P01',category:'P01_WALLET',campuses:['C02']}});
-  expect(db.notices).toHaveLength(0);
-  const staff=await context.newPage();
-  await staff.setViewportSize({width:1440,height:900});
-  await staff.goto('/?role=staff');
-  await staff.getByRole('navigation',{name:'職員メニュー'}).getByRole('button',{name:'学生の紛失申告',exact:true}).click();
-  await staff.getByRole('button',{name:/内側のポケットに星のシール/}).click();
-  const review=staff.getByRole('dialog',{name:'紛失申告と非公開品を照合'});
-  await expect(review).toContainText('内側のポケットに星のシール');
-  await expect(review.locator('.lf-item-card').getByRole('heading',{name:'財布',exact:true})).toBeVisible();
-  await review.locator('.lf-item-card').filter({hasText:'#4'}).click();
-  await review.getByRole('checkbox').check();
-  await review.getByRole('button',{name:'この品物で本人へ案内'}).click();
-  await expect(staff.getByText('本人への案内を登録しました。')).toBeVisible();
-  await page.bringToFront();await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
-  await expect(page.locator('.lf-record-card .lf-badge')).toHaveText('候補あり');
-  await page.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'お知らせ',exact:true}).click();
-  await expect(page.getByRole('button',{name:'窓口で確認する',exact:true})).toHaveCount(0);
-  await expect(page.getByRole('button',{name:'候補の詳細を見る',exact:true})).toHaveCount(0);
-  await expect(page.getByText('黒い二つ折り財布')).toHaveCount(0);
-  await page.getByRole('button',{name:'候補を確認',exact:true}).click();
-  await expect(page.getByRole('dialog')).toContainText('財布');
-  await expect(page.getByRole('dialog')).not.toContainText('黒い二つ折り財布');
-  await page.getByRole('dialog').getByRole('button',{name:'受け取りを申し込む',exact:true}).click();
-  await expect(page.getByText('受け取りを申し込みました。保管窓口へ取りに来てください。窓口では学校メールをお伝えください。')).toBeVisible();
-  await expect(page.locator('.lf-record-card')).toHaveCount(1);
-  await expect(page.locator('.lf-record-card .lf-badge')).toHaveText('受け取り予定');
-  const accepted=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));
-  expect(accepted.requests).toHaveLength(1);expect(accepted.claims).toHaveLength(1);
-  expect(accepted.claims[0].value).toMatchObject({itemId:'4',requestId:db.requests[0].id,feature:'内側のポケットに星のシール',status:'PENDING'});
-  await page.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'お知らせ',exact:true}).click();
-  await expect(page.getByRole('button',{name:'受け取りを申し込む',exact:true})).toHaveCount(0);
-  await expect(page.locator('.lf-panel .lf-badge')).toHaveText('受け取り予定');
-  await expect(page.getByRole('button',{name:'受け取り予定を確認',exact:true})).toHaveCount(0);
-});
-
-test('同じ腕時計でも品物ごとの公開設定を反映し、非公開の時計を共通の申告から探せる',async({page,context})=>{
-  await page.setViewportSize({width:375,height:667});
-  await page.goto('/?role=student');
-  await page.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'探す',exact:true}).click();
-  await page.getByRole('button',{name:'絞り込み',exact:true}).click();
-  await page.getByRole('radio',{name:'衣類・身につける物',exact:true}).check();
-  await page.getByRole('radio',{name:'腕時計',exact:true}).check();
-  await page.getByRole('button',{name:'この条件で探す'}).click();
-  await page.getByRole('button',{name:'紛失した物を登録',exact:true}).click();
-  await page.getByRole('dialog').getByLabel('特徴（任意）').fill('留め具に星の刻印');
-
-  await page.getByRole('dialog').getByRole('button',{name:'紛失した物を登録',exact:true}).click();
-  await expect(page.getByText('紛失した物を登録しました。条件に合う候補が見つかるとお知らせします。')).toBeVisible();
-  await page.evaluate(()=>{const key='lost-found-no-qr-test-harness-v1';const db=JSON.parse(localStorage.getItem(key)!);db.requests[0].value.createdAt='2000-01-01T00:00:00.000Z';localStorage.setItem(key,JSON.stringify(db));});
-  const staff=await context.newPage();await staff.goto('/?role=staff');
-  for(const privateItem of [true,false]) {
-    await staff.getByRole('button',{name:'＋ 拾得物を登録'}).click();
-    await staff.getByRole('radio',{name:'衣類・身につける物',exact:true}).check();
-    await staff.getByRole('radio',{name:'腕時計',exact:true}).check();
-    await staff.getByRole('radio',{name:'六甲台第2キャンパス',exact:true}).check();
-    await staff.getByLabel('特徴（任意）').fill(privateItem?'非公開の刻印付き時計':'公開の丸い文字盤の時計');
-    await staff.getByRole('checkbox',{name:'学生一覧に公開する（品物の種類にかかわらず職員が判断）'}).setChecked(!privateItem);
-    await staff.getByRole('button',{name:'拾得物を登録',exact:true}).click();
-    await expect(staff.getByText('拾得物を登録しました。')).toBeVisible();
-    await page.reload();
-    await page.getByRole('textbox',{name:'キーワードで探す'}).fill('腕時計');
-    await expect(page.getByRole('heading',{name:privateItem?'公開中の拾得物 0件':'公開中の拾得物 1件',exact:true})).toBeVisible();
-    await expect(page.getByText('絞り込み後、候補に自分の物がなければ、紛失した物を登録できます。')).toBeVisible();
-    await expect(page.getByRole('button',{name:'紛失した物を登録',exact:true})).toHaveCount(0);
-    await expect(page.getByText(/非公開の刻印付き時計/)).toHaveCount(0);
-    const db=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));
-    expect(db.notices).toHaveLength(privateItem?0:1);
-    if(privateItem) {
-      await expect(page.getByText('この条件に合う公開中の拾得物はありません。')).toBeVisible();
-      await page.screenshot({path:'temp/screenshots/student-private-watch.png'});
-      await staff.getByRole('navigation',{name:'職員メニュー'}).getByRole('button',{name:'学生の紛失申告',exact:true}).click();
-      await staff.getByRole('button',{name:/留め具に星の刻印/}).click();
-      const review=staff.getByRole('dialog',{name:'紛失申告と非公開品を照合'});
-      await expect(review).toContainText('非公開の刻印付き時計');
-      await review.getByRole('button',{name:'閉じる',exact:true}).click();
-      await staff.getByRole('navigation',{name:'職員メニュー'}).getByRole('button',{name:'保管中の拾得物',exact:true}).click();
-    } else {
-      await expect(page.getByText(/公開の丸い文字盤の時計/)).toBeVisible();
-      expect(db.notices[0].value.kind).toBe('MATCH');
-    }
-  }
 });
 
 test('所属窓口を初期表示し、登録導線は一つ、メニューを閉じるとタブを隠す',async({page})=>{
@@ -1243,7 +739,7 @@ test('検索条件はモーダルで確定し、キャンセル時には検索�
  await page.getByRole('button',{name:'絞り込み'}).click();
  await expect(page.getByRole('group',{name:'種類',exact:true}).getByRole('radio',{name:'すべて',exact:true})).toBeChecked();
  await page.getByRole('radio',{name:'財布・現金',exact:true}).check();await page.getByRole('button',{name:'この条件で探す'}).click();
- await expect(page.getByText('この条件に合う公開中の拾得物はありません。')).toBeVisible();
+ await expect(page.getByText('この条件に合う保管中の拾得物はありません。')).toBeVisible();
  await expect(page.getByRole('button',{name:'紛失した物を登録'})).toHaveCount(1);
  await expect(page.getByRole('region',{name:'見つからない物の通知'}).getByRole('button',{name:'紛失した物を登録'})).toBeInViewport({ratio:1});
  await expect(page.locator('.lf-item-card')).toHaveCount(0);
@@ -1252,7 +748,7 @@ test('検索条件はモーダルで確定し、キャンセル時には検索�
 
 test('職員一覧の種類・キャンパス・複数色を持つ品物の色絞り込み',async({page})=>{
  await page.setViewportSize({width:1440,height:1000});await page.goto('/?role=staff');
- await expect(page.getByText('公開',{exact:true}).first()).toBeVisible();
+ await expect(page.getByText('公開',{exact:true})).toHaveCount(0);
  await expect(page.getByText('学生への公開：',{exact:false})).toHaveCount(0);
  await page.getByRole('button',{name:'絞り込み',exact:true}).click();
  const filters=page.getByRole('region',{name:'拾得物の絞り込み'});
@@ -1262,7 +758,7 @@ test('職員一覧の種類・キャンパス・複数色を持つ品物の色�
  await filters.getByRole('combobox',{name:'種類',exact:true}).selectOption('P05');
  await expect(page.locator('.lf-item-card')).toHaveCount(1);
  await filters.getByRole('combobox',{name:'拾得キャンパス',exact:true}).selectOption('C08');await expect(page.locator('.lf-item-card')).toHaveCount(0);
- await filters.getByRole('button',{name:'条件を解除'}).click();await expect(page.locator('.lf-item-card')).toHaveCount(5);
+ await filters.getByRole('button',{name:'条件を解除'}).click();await expect(page.locator('.lf-item-card')).toHaveCount(4);
  const card=page.locator('.lf-item-card').first();await card.locator('h3').hover();
  await expect(card).toHaveCSS('background-color','rgb(247, 247, 247)');
  expect((await card.boundingBox())!.height).toBeLessThan(110);
@@ -1318,48 +814,6 @@ test('申出のある品物は削除せず履歴を保護する',async({page})=>
  await expect(page.getByRole('alert')).toContainText('申出・通知・返却履歴がある品物は削除できません');
  const db=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));
  expect(db.items.some((r:{id:string})=>r.id==='1')).toBe(true);expect(db.claims).toHaveLength(1);
-});
-
-test('受取一覧は原本の品名・特徴で識別し、非公開の原本情報を学生に渡さない',async({page,context})=>{
- await page.setViewportSize({width:1440,height:1000});
- await page.goto('/?role=staff');
- await page.evaluate(()=>{
-   const key='lost-found-no-qr-test-harness-v1';const db=JSON.parse(localStorage.getItem(key)!);
-   db.items.find((row:{id:string})=>row.id==='4').value.title='財布（職員が現物を確認済み）';
-   db.profiles.push({id:'90',author:'student-1',etag:'1',value:{email:'s260001@stu.kobe-u.ac.jp'}});
-   db.requests.push({id:'90',author:'student-1',etag:'1',value:{criteria:{parent:'P01',category:'P01_WALLET',colors:[],campus:'',building:'',dateFrom:'',dateTo:'',query:''},feature:'内側に名前を書いた',status:'ACTIVE',createdAt:new Date().toISOString()}});
-   db.claims=[{id:'90',author:'student-1',etag:'1',value:{itemId:'4',requestId:'90',status:'PENDING',feature:'内側に名前を書いた',title:'拾得物の受け取り申し込み',window:'農学部事務室',createdAt:new Date().toISOString()}}];
-   localStorage.setItem(key,JSON.stringify(db));
- });
- await page.reload();
- await page.getByRole('navigation',{name:'職員メニュー'}).getByRole('button',{name:'受取対応',exact:true}).click();
- const row=page.locator('.lf-receipt-row');
- await expect(row.getByRole('heading',{name:'財布（職員が現物を確認済み）',exact:true})).toBeVisible();
- await expect(row.getByText('黒｜黒い二つ折り財布',{exact:true})).toHaveAttribute('title','黒｜黒い二つ折り財布');
- await expect(row.getByText('拾得物の受け取り申し込み',{exact:true})).toHaveCount(0);
- await expect(row.locator('.lf-receipt-item p')).toHaveCSS('text-overflow','ellipsis');
- await page.getByRole('textbox',{name:'受け取り申し込みを検索'}).fill('二つ折り');
- await expect(row).toHaveCount(1);
- await row.getByRole('button',{name:'本人確認・返却'}).click();
- const dialog=page.getByRole('dialog');
- const original=dialog.locator('.lf-field').filter({has:page.getByText('拾得物の特徴',{exact:true})});
- const reported=dialog.locator('.lf-field').filter({has:page.getByText('学生が申告した特徴',{exact:true})});
- await expect(original).toContainText('黒い二つ折り財布');
- await expect(reported).toContainText('内側に名前を書いた');
- await expect(original).not.toContainText('内側に名前を書いた');
- await expect(dialog.getByRole('button',{name:'返却を完了する'})).toBeDisabled();
- const originalBox=await original.boundingBox();const reportedBox=await reported.boundingBox();
- expect(reportedBox!.x).toBeGreaterThan(originalBox!.x+originalBox!.width);
- await page.screenshot({path:'temp/screenshots/staff-return-feature-comparison.png',fullPage:true});
- await dialog.getByRole('button',{name:'閉じる',exact:true}).click();
- const student=await context.newPage();
- await student.goto('/?role=student');
- await student.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'紛失した物',exact:true}).click();
- await expect(student.getByText('受け取り予定',{exact:true})).toBeVisible();
- await expect(student.getByText('財布（職員が現物を確認済み）',{exact:false})).toHaveCount(0);
- await expect(student.getByText('黒い二つ折り財布',{exact:false})).toHaveCount(0);
- const db=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));
- expect(db.claims[0].value).toMatchObject({title:'拾得物の受け取り申し込み',feature:'内側に名前を書いた',status:'PENDING'});
 });
 
 test('受取対応で選んだ相手を固定し、別の相手を開くと本人確認をやり直す',async({page})=>{
@@ -1495,21 +949,6 @@ test('保管中の拾得物はまとめて移管でき、返却操作は表示�
  expect(db.items.find((row:{id:string})=>row.id==='3').value.status).toBe('保管中');
 });
 
-test('通常に登録した申告からも同じ画面で非公開品を選び、現物確認後に案内する',async({page})=>{
- await page.goto('/?role=staff');
- await page.evaluate(()=>{const key='lost-found-no-qr-test-harness-v1';const db=JSON.parse(localStorage.getItem(key)!);db.profiles.push({id:'91',author:'student-search',etag:'1',value:{email:'s269999@stu.kobe-u.ac.jp',window:''}});db.requests=[{id:'91',author:'student-search',etag:'1',value:{criteria:{parent:'P01',category:'P01_WALLET',colors:['黒'],campus:'',building:'',dateFrom:'',dateTo:'',query:''},feature:'内側にイニシャル',valuable:false,status:'ACTIVE',createdAt:new Date().toISOString()}}];localStorage.setItem(key,JSON.stringify(db));});
- await page.reload();await page.getByRole('navigation',{name:'職員メニュー'}).getByRole('button',{name:'学生の紛失申告',exact:true}).click();
- const requestSearch=page.getByRole('textbox',{name:'学生の紛失申告を検索'});await requestSearch.fill('s260000');await expect(page.locator('.lf-item-grid .lf-item-card')).toHaveCount(0);await requestSearch.fill('s269999');const requestCard=page.locator('.lf-item-grid .lf-item-card');await expect(requestCard).toHaveCount(1);await expect(requestCard).toContainText('学籍番号：s269999');await requestSearch.fill('');
- await expect(page.getByText('公開区分は拾得物側で判断します。申告を開くと、非公開・保管中の拾得物だけを照合できます。')).toBeVisible();
- await expect(page.locator('.lf-item-grid .lf-item-card')).toHaveCount(1);await expect(page.getByText('非公開品と照合',{exact:true})).toBeVisible();await page.locator('.lf-item-card').click();
- const dialog=page.getByRole('dialog',{name:'紛失申告と非公開品を照合'});await expect(dialog).toBeVisible();await expect(dialog.getByRole('combobox',{name:'保管窓口',exact:true})).toHaveValue('own');
- await expect(dialog.getByRole('combobox',{name:'保管品の種類',exact:true})).toHaveValue('all');const wallet=dialog.locator('.lf-item-card').filter({hasText:'#4'});await expect(wallet).toBeVisible();await wallet.click();await expect(dialog.getByRole('button',{name:'この品物で本人へ案内'})).toBeDisabled();
- await dialog.getByRole('checkbox').check();await expect(dialog.getByRole('button',{name:'この品物で本人へ案内'})).toBeEnabled();
- await dialog.getByRole('combobox',{name:'保管品の種類',exact:true}).selectOption('same');await expect(dialog.getByRole('checkbox')).not.toBeChecked();await expect(dialog.getByRole('button',{name:'この品物で本人へ案内'})).toBeDisabled();
- await dialog.getByRole('combobox',{name:'保管品の種類',exact:true}).selectOption('all');await wallet.click();await dialog.getByRole('checkbox').check();await dialog.getByRole('button',{name:'この品物で本人へ案内'}).click();await expect(page.getByText('本人への案内を登録しました。')).toBeVisible();
- const db=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));expect(db.notices).toHaveLength(1);expect(db.notices[0].value).toMatchObject({itemId:'4',requestId:'91'});
-});
-
 test('絞り込み後は候補があっても違う物として登録できる',async({page})=>{
   await page.goto('/?role=student');
   const register=page.getByRole('button',{name:'紛失した物を登録',exact:true});
@@ -1518,19 +957,19 @@ test('絞り込み後は候補があっても違う物として登録できる',
   await expect(register).toHaveCount(0);
   await page.getByRole('button',{name:'解除',exact:true}).click();
   await page.getByRole('button',{name:'絞り込み',exact:true}).click();
-  await page.getByRole('radio',{name:'傘・雨具',exact:true}).check();
+  await page.getByRole('radio',{name:'スマホ・電子機器',exact:true}).check();
   await page.getByRole('button',{name:'この条件で探す'}).click();
-  await expect(page.getByRole('heading',{name:'長傘',exact:true})).toBeVisible();
+  await expect(page.getByRole('heading',{name:'ワイヤレスイヤホン',exact:true})).toBeVisible();
   await expect(register).toHaveCount(1);
   await expect(page.getByText('候補に自分の物がなければ、この検索条件で紛失した物を登録し、通知を待てます。')).toBeVisible();
   await register.click();
   const dialog=page.getByRole('dialog');
   await expect(dialog.getByRole('button',{name:'紛失した物を登録'})).toBeEnabled();
-  await dialog.getByLabel('特徴（任意）').fill('一覧の長傘とは違う持ち手');
+  await dialog.getByLabel('特徴（任意）').fill('一覧のイヤホンとは違うケース');
   await dialog.getByRole('button',{name:'紛失した物を登録'}).click();
   await expect(page.getByText('紛失した物を登録しました。条件に合う候補が見つかるとお知らせします。')).toBeVisible();
   const db=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));
-  expect(db.requests[0].value).toMatchObject({status:'ACTIVE',feature:'一覧の長傘とは違う持ち手',criteria:{parent:'P05'}});
+  expect(db.requests[0].value).toMatchObject({status:'ACTIVE',feature:'一覧のイヤホンとは違うケース',criteria:{parent:'P02'}});
 });
 
 test('探し中の物は各項目の意味を表示し、新しい順で取り下げられる',async({page})=>{
@@ -1686,11 +1125,11 @@ test('候補は申告の下で開閉し、複数・重複・終了候補を整�
   const card=page.locator('.lf-record-card');const disclosure=card.locator('.lf-candidates');
   const toggle=disclosure.locator('summary');const rows=disclosure.locator('.lf-candidate-row');
   await expect(card).toHaveCount(1);await expect(card.locator('.lf-badge')).toHaveText('候補あり');
-  await expect(toggle).toHaveText('候補を見る（3件）');
+  await expect(toggle).toHaveText('候補を見る（2件）');
   await expect(disclosure).not.toHaveAttribute('open');await expect(rows.first()).not.toBeVisible();
   await expect(card.getByRole('button',{name:'候補を確認',exact:true})).toHaveCount(0);
   await toggle.focus();await toggle.press('Enter');
-  await expect(disclosure).toHaveAttribute('open','');await expect(rows).toHaveCount(3);
+  await expect(disclosure).toHaveAttribute('open','');await expect(rows).toHaveCount(2);
   await expect(rows.first()).toBeVisible();await expect(disclosure.locator('details')).toHaveCount(0);
   await expect(page.getByText('非公開の品名は秘密')).toHaveCount(0);
   await expect(page.getByText('非公開の特徴は秘密')).toHaveCount(0);
@@ -1718,34 +1157,6 @@ test('候補は申告の下で開閉し、複数・重複・終了候補を整�
   await expect(card.locator('.lf-candidates')).toHaveCount(0);await expect(card).toHaveCount(1);
   const db=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));
   expect(db.requests).toHaveLength(1);expect(db.claims[0].value).toMatchObject({itemId:'2',requestId:'81',feature:'白い持ち手',status:'PENDING'});
-});
-
-test('非公開候補は窓口だけ表示し、紛失した物の候補欄から申し込める',async({page})=>{
-  await page.setViewportSize({width:390,height:844});await page.goto('/?role=student');
-  await page.evaluate(()=>{
-    const key='lost-found-no-qr-test-harness-v1';const db=JSON.parse(localStorage.getItem(key)!);
-    db.requests=[{id:'81',author:'student-1',etag:'1',value:{criteria:{parent:'P01',category:'P01_WALLET',colors:['黒'],campus:'',building:'',dateFrom:'',dateTo:'',query:''},feature:'本人確認用の特徴',valuable:false,status:'ACTIVE',createdAt:'2026-09-15T00:00:00Z'}}];
-    db.notices=[{id:'1',author:'staff-1',etag:'1',value:{owner:'student-1',email:'s260001@stu.kobe-u.ac.jp',itemId:'4',requestId:'81',claimId:'',kind:'VALUABLE',title:'秘密の品名',message:'秘密の特徴',window:'農学部事務室',createdAt:'2026-09-27T00:00:00Z'}}];
-    localStorage.setItem(key,JSON.stringify(db));
-  });
-  await page.reload();await page.getByRole('navigation',{name:'学生メニュー'}).getByRole('button',{name:'紛失した物'}).click();
-  const card=page.locator('.lf-record-card');
-  await card.locator('.lf-candidates>summary').click();
-  await expect(card.locator('.lf-candidate-row')).toContainText('窓口からの案内');
-  await expect(card.locator('.lf-candidate-row')).toContainText('受取窓口：農学部事務室');
-  await expect(page.getByText('秘密の品名')).toHaveCount(0);await expect(page.getByText('秘密の特徴')).toHaveCount(0);
-  await card.getByRole('button',{name:'案内を確認',exact:true}).click();
-  const privateDialog=page.getByRole('dialog');
-  await expect(privateDialog.getByRole('heading',{name:'財布',exact:true})).toBeVisible();
-  await expect(privateDialog).toContainText('受取窓口：農学部事務室');
-  await expect(page.getByText('秘密の品名')).toHaveCount(0);await expect(page.getByText('秘密の特徴')).toHaveCount(0);
-  await privateDialog.getByRole('button',{name:'受け取りを申し込む',exact:true}).click();
-  await expect(page.getByText('受け取りを申し込みました。保管窓口へ取りに来てください。窓口では学校メールをお伝えください。')).toBeVisible();
-  await expect(card.locator('.lf-badge')).toHaveText('受け取り予定');
-  await expect(card.getByRole('heading',{name:'財布',exact:true})).toBeVisible();
-  const db=await page.evaluate(()=>JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!));
-  expect(db.requests).toHaveLength(1);expect(db.claims[0].value).toMatchObject({itemId:'4',requestId:'81',feature:'本人確認用の特徴',status:'PENDING'});
-  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('既存の単独申出も同じカードで表示し、途中の紐づけ状態を二重表示しない',async({page})=>{

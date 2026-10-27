@@ -14,7 +14,6 @@ export function Mark({ type }: { type: string }): React.ReactElement {
     claims: <><path d="m4 12 5 5L20 6M3 4h6M3 8h4"/></>,
     notices: <><path d="M5 17h14l-2-4V9a5 5 0 0 0-10 0v4zM10 20h4"/></>,
     history: <><path d="M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v6l4 2"/></>,
-    found: <><path d="M12 20 3.5 11.5a5 5 0 0 1 7-7L12 6l1.5-1.5a5 5 0 0 1 7 7Z"/></>,
     settings: <><circle cx="12" cy="8" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/></>
   };
   return <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[type] || paths.search}</svg>;
@@ -63,7 +62,7 @@ export function Dialog({ title, showTitle = true, className, onClose, busy, chil
 }
 
 export function ItemInfo({ item }: { item: Item }): React.ReactElement {
-  return <dl className="lf-detail"><div><dt>色</dt><dd>{item.colors.join('・') || '不明'}</dd></div><div><dt>特徴</dt><dd>{item.feature || '登録なし'}</dd></div><div><dt>拾得場所</dt><dd>{item.place || getBuilding(item.building)?.name || getCampus(item.campus)?.name || '不明'}</dd></div><div><dt>拾得日</dt><dd>{item.foundOn || '不明'}</dd></div><div><dt>保管場所</dt><dd>{item.window}</dd></div></dl>;
+  return <dl className="lf-detail"><div><dt>色</dt><dd>{item.colors.join('・') || '不明'}</dd></div><div><dt>特徴</dt><dd>{item.feature || '登録なし'}</dd></div><div><dt>拾得場所</dt><dd>{item.place || getBuilding(item.building)?.name || getCampus(item.campus)?.name || '不明'}</dd></div><div><dt>拾得日</dt><dd>{item.foundOn || '不明'}</dd></div><div><dt>{item.status==='移管済み' ? '移管元' : '保管場所'}</dt><dd>{item.window}</dd></div></dl>;
 }
 
 export function RequestInfo({ request }: { request: Request }): React.ReactElement {
@@ -81,5 +80,5 @@ export function AccountInfo({ data }: { data: Snapshot }): React.ReactElement {
 }
 
 export function ItemCard({ item, onOpen }: { item: Item; onOpen: () => void }): React.ReactElement {
-  return <button type="button" className="lf-item-card" onClick={onOpen}><div className="lf-card-content"><h3>{item.title}</h3><p>色：{item.colors.join('・') || '不明'}</p><p className="lf-card-feature">特徴：{item.feature || '登録なし'}</p><div className="lf-card-footer"><span>保管場所：{item.window}</span><span>拾得日：{item.foundOn || '不明'}</span></div></div><span className="lf-chevron">›</span></button>;
+  return <button type="button" className="lf-item-card" onClick={onOpen}><div className="lf-card-content"><h3>{item.title}</h3><p>色：{item.colors.join('・') || '不明'}</p><p className="lf-card-feature">特徴：{item.feature || '登録なし'}</p><div className="lf-card-footer"><span>{item.status==='移管済み' ? '移管先：' : '保管場所：'}{item.status==='移管済み' ? item.transferDestination || '未登録' : item.window}</span><span>拾得日：{item.foundOn || '不明'}</span></div></div><span className="lf-chevron">›</span></button>;
 }

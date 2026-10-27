@@ -1,0 +1,276 @@
+{
+  "properties": {
+    "displayName": "LFDeleteExpiredDailyPhotos",
+    "connectionReferences": {},
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        },
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        }
+      },
+      "triggers": {
+        "Daily": {
+          "type": "Recurrence",
+          "recurrence": {
+            "frequency": "Day",
+            "interval": 1,
+            "timeZone": "Tokyo Standard Time",
+            "schedule": {
+              "hours": [
+                0
+              ],
+              "minutes": [
+                0
+              ]
+            }
+          },
+          "runtimeConfiguration": {
+            "concurrency": {
+              "runs": 1
+            }
+          }
+        }
+      },
+      "actions": {
+        "CampusMonth": {
+          "type": "Compose",
+          "inputs": "@formatDateTime(convertTimeZone(utcNow(),'UTC','Tokyo Standard Time'),'yyyy-MM-01')",
+          "runAfter": {}
+        },
+        "CutoffUtc": {
+          "type": "Compose",
+          "inputs": "@convertToUtc(addToTime(concat(outputs('CampusMonth'),'T00:00:00'),-3,'Month','yyyy-MM-ddTHH:mm:ss'),'Tokyo Standard Time','yyyy-MM-ddTHH:mm:ssZ')",
+          "runAfter": {
+            "CampusMonth": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Failures": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "CleanupFailures",
+                "type": "array",
+                "value": []
+              }
+            ]
+          },
+          "runAfter": {
+            "CutoffUtc": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Candidates": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+              "connectionName": "shared_sharepointonline",
+              "operationId": "GetItems"
+            },
+            "parameters": {
+              "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+              "table": "ba0e952c-6b86-4182-ab1b-8797a7a74397",
+              "$filter": "ReceivedOn lt datetime'@{outputs('CutoffUtc')}'",
+              "$orderby": "ID asc"
+            },
+            "authentication": "@parameters('$authentication')"
+          },
+          "runAfter": {
+            "Failures": [
+              "Succeeded"
+            ]
+          },
+          "runtimeConfiguration": {
+            "paginationPolicy": {
+              "minimumItemCount": 5000
+            }
+          }
+        },
+        "EachExpired": {
+          "type": "Foreach",
+          "foreach": "@body('Candidates')?['value']",
+          "actions": {
+            "TryItem": {
+              "type": "Scope",
+              "actions": {
+                "ReadCurrent": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                      "connectionName": "shared_sharepointonline",
+                      "operationId": "HttpRequest"
+                    },
+                    "parameters": {
+                      "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                      "parameters/uri": "_api/web/lists(guid'ba0e952c-6b86-4182-ab1b-8797a7a74397')/items(@{int(items('EachExpired')?['ID'])})?$select=Id,ReceivedOn",
+                      "parameters/method": "GET",
+                      "parameters/headers": {
+                        "Accept": "application/json;odata=minimalmetadata"
+                      }
+                    },
+                    "authentication": "@parameters('$authentication')"
+                  },
+                  "runAfter": {}
+                },
+                "HasDate": {
+                  "type": "If",
+                  "expression": "@not(empty(body('ReadCurrent')?['ReceivedOn']))",
+                  "actions": {
+                    "StillExpired": {
+                      "type": "If",
+                      "expression": "@less(ticks(body('ReadCurrent')?['ReceivedOn']),ticks(outputs('CutoffUtc')))",
+                      "actions": {
+                        "HasETag": {
+                          "type": "If",
+                          "expression": "@not(empty(coalesce(body('ReadCurrent')?['odata.etag'],body('ReadCurrent')?['@odata.etag'],'')))",
+                          "actions": {
+                            "DeleteExpired": {
+                              "type": "OpenApiConnection",
+                              "inputs": {
+                                "host": {
+                                  "apiId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline",
+                                  "connectionName": "shared_sharepointonline",
+                                  "operationId": "HttpRequest"
+                                },
+                                "parameters": {
+                                  "dataset": "https://cloudkobeu.sharepoint.com/teams/t-dxsuisin-tesvd2",
+                                  "parameters/uri": "_api/web/lists(guid'ba0e952c-6b86-4182-ab1b-8797a7a74397')/items(@{int(items('EachExpired')?['ID'])})",
+                                  "parameters/method": "POST",
+                                  "parameters/headers": {
+                                    "Accept": "application/json;odata=minimalmetadata",
+                                    "X-HTTP-Method": "DELETE",
+                                    "IF-MATCH": "@coalesce(body('ReadCurrent')?['odata.etag'],body('ReadCurrent')?['@odata.etag'],'')"
+                                  }
+                                },
+                                "authentication": "@parameters('$authentication')"
+                              },
+                              "runAfter": {}
+                            }
+                          },
+                          "else": {
+                            "actions": {
+                              "MissingETag": {
+                                "type": "AppendToArrayVariable",
+                                "inputs": {
+                                  "name": "CleanupFailures",
+                                  "value": {
+                                    "itemId": "@items('EachExpired')?['ID']",
+                                    "message": "Missing ETag; item was not deleted."
+                                  }
+                                },
+                                "runAfter": {}
+                              }
+                            }
+                          },
+                          "runAfter": {}
+                        }
+                      },
+                      "else": {
+                        "actions": {}
+                      },
+                      "runAfter": {}
+                    }
+                  },
+                  "else": {
+                    "actions": {}
+                  },
+                  "runAfter": {
+                    "ReadCurrent": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "runAfter": {}
+            },
+            "RecordFailure": {
+              "type": "If",
+              "expression": "@not(or(equals(outputs('ReadCurrent')?['statusCode'],404),equals(outputs('DeleteExpired')?['statusCode'],404)))",
+              "actions": {
+                "AppendFailure": {
+                  "type": "AppendToArrayVariable",
+                  "inputs": {
+                    "name": "CleanupFailures",
+                    "value": {
+                      "itemId": "@items('EachExpired')?['ID']",
+                      "message": "Read/delete failed; check this run. The next daily run retries expired rows."
+                    }
+                  },
+                  "runAfter": {}
+                }
+              },
+              "else": {
+                "actions": {}
+              },
+              "runAfter": {
+                "TryItem": [
+                  "Failed",
+                  "TimedOut"
+                ]
+              }
+            }
+          },
+          "runtimeConfiguration": {
+            "concurrency": {
+              "repetitions": 1
+            }
+          },
+          "runAfter": {
+            "Candidates": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Result": {
+          "type": "If",
+          "expression": "@or(greater(length(variables('CleanupFailures')),0),greaterOrEquals(length(body('Candidates')?['value']),5000),not(equals(actions('EachExpired')?['status'],'Succeeded')))",
+          "actions": {
+            "Failed": {
+              "type": "Terminate",
+              "inputs": {
+                "runStatus": "Failed",
+                "runError": {
+                  "code": "PHOTO_CLEANUP_INCOMPLETE",
+                  "message": "Expired photo cleanup was incomplete. Check failed item actions; the next run retries remaining rows."
+                }
+              },
+              "runAfter": {}
+            }
+          },
+          "else": {
+            "actions": {
+              "Completed": {
+                "type": "Compose",
+                "inputs": {
+                  "candidates": "@length(body('Candidates')?['value'])",
+                  "cutoffUtc": "@outputs('CutoffUtc')"
+                },
+                "runAfter": {}
+              }
+            }
+          },
+          "runAfter": {
+            "EachExpired": [
+              "Succeeded",
+              "Failed",
+              "TimedOut"
+            ]
+          }
+        }
+      },
+      "outputs": {}
+    }
+  }
+}

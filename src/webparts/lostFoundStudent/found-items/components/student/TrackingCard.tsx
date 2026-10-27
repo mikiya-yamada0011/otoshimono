@@ -6,7 +6,7 @@ export function TrackingCard({ title, status, summary, details, date, actions, c
   status: string;
   summary: React.ReactNode;
   details: React.ReactNode;
-  date: string;
+  date?: string;
   actions?: React.ReactNode;
   children?: React.ReactNode;
 }): React.ReactElement {
@@ -16,7 +16,7 @@ export function TrackingCard({ title, status, summary, details, date, actions, c
     <details className="lf-record-details"><summary>詳細を見る</summary>{details}</details>
     {children}
     <footer className="lf-record-footer">
-      <span className="lf-muted">{stamp(date)}</span>
+      {date && <span className="lf-muted">{stamp(date)}</span>}
       <div className="lf-record-actions">{actions}</div>
     </footer>
   </article>;

@@ -1,7 +1,6 @@
 import { AppService, Snapshot, Profile, Item, ItemInput, Request, Claim, Notice, Mail, Criteria, categoryName, matchesRequest, publicItem, validateCriteria, validateSchoolEmail, today } from '../../src/webparts/lostFoundStudent/found-items/types/model';
 import { Repository, Row, Table } from '../../src/webparts/lostFoundStudent/found-items/api/service';
 import { StudentService } from '../../src/webparts/lostFoundStudent/found-items/api/service';
-import { FoundSubmission, FoundSubmissionInput } from '../../src/webparts/lostFoundStudent/found-items/types/model';
 export interface AdminRepository extends Repository {
   grantNotice(id: string, owner: string): Promise<void>;
 }
@@ -16,7 +15,6 @@ export interface AdminAppService extends AppService {
  saveItem(input:ItemInput,id?:string):Promise<void>;
  saveItemNote(itemId:string,note:string):Promise<void>;
  deleteItem(itemId:string):Promise<void>;
- notify(itemId:string,requestId:string):Promise<void>;
  returnItem(itemId:string,email:string,claimId:string,confirmed:boolean):Promise<void>;
  transferItems(itemIds:string[],destination:string,confirmed:boolean):Promise<void>;
  correctReturn(itemId:string,reason:string):Promise<void>;
@@ -55,15 +53,12 @@ export class WorkflowService implements AdminAppService {
       return [{id:notice.id,itemId:String(notice.value.itemId||'?'),title:String(item?.value.title||'拾得物'),studentId:String(mail.value.email||'').split('@')[0],window:String(notice.value.window||item?.value.window||'未設定'),status:String(mail.value.status||''),sentAt:String(mail.value.modifiedAt||''),error:String(mail.value.error||'')}];
     }):[];
     return {notificationHistory,warnings:results.flatMap((rows,index)=>rows.filter(r=>r.value.invalid).map(r=>`${tables[index]} #${r.id}`)),user:this.repo.user, profile:profiles.filter(r=>r.author===this.repo.user.id).map(r=>record<Profile>(r))[0],
-      items:get(staff?'items':'public').map(r=>({...record<Item>(r),id:staff?r.id:String(r.value.sourceId)})).filter(i=>staff || (!i.valuable && i.status==='保管中')),
-      requests,claims,notices:get('notices').map(r=>({...r.value,id:r.id} as unknown as Notice)).filter(n=>staff || n.owner===this.repo.user.id),
+      items:get(staff?'items':'public').map(r=>({...record<Item>(r),id:staff?r.id:String(r.value.sourceId)})).filter(i=>!i.valuable && (staff || i.status==='保管中')),
+      requests,claims,notices:get('notices').map(r=>({...r.value,id:r.id} as unknown as Notice)).filter(n=>n.kind==='MATCH' && (staff || n.owner===this.repo.user.id)),
       mail:get('mail').map(r=>record<Mail>(r))};
   }
-  public async loadFoundSubmissions():Promise<FoundSubmission[]> {
-    return new StudentService(this.repo,this.domains).loadFoundSubmissions();
-  }
-  public async submitFoundItem(input:FoundSubmissionInput):Promise<void> {
-    await new StudentService(this.repo,this.domains).submitFoundItem(input);
+  public async loadDailyPhotoBatches():Promise<import('../../src/webparts/lostFoundStudent/found-items/types/model').DailyPhotoBatch[]> {
+    return new StudentService(this.repo,this.domains).loadDailyPhotoBatches();
   }
   public async saveProfile(input: Omit<Profile,'id'>): Promise<void> {
     const email = this.repo.user.role === 'staff' ? this.repo.user.email : validateSchoolEmail(input.email,this.domains);
@@ -97,8 +92,8 @@ export class WorkflowService implements AdminAppService {
     if(input.foundOn && input.foundOn > today()) throw new Error('拾得日に未来の日付は指定できません。');
     const old=id?(await this.repo.list('items')).find(r=>r.id===id):undefined;
     if(id && (!old || old.value.status!=='保管中')) throw new Error('保管中の拾得物だけ編集できます。');
-    if(input.finderEmail) validateSchoolEmail(input.finderEmail,this.domains);
-    const value={...old?.value,...input,title:categoryName(input.parent,input.category),valuable:input.valuable,status:'保管中',createdAt:old?.value.createdAt || now()};
+    if(input.valuable) throw new Error('連絡先が分かる品物はシステムに登録しません。');
+    const value={...old?.value,...input,title:categoryName(input.parent,input.category),valuable:false,finderEmail:'',status:'保管中',createdAt:old?.value.createdAt || now()};
     const itemId=await this.repo.put('items',value,id,old?.etag);
     // The primary record is committed first. Reconciliation is repeatable after any partial failure.
     try { await this.reconcile(); } catch { throw new Error(`拾得物 #${itemId} の保存は完了しました。公開・通知への反映が未完了です。「再同期」を実行してください。再登録は不要です。`); }
@@ -112,15 +107,6 @@ export class WorkflowService implements AdminAppService {
     const projections=await this.repo.list('public');
     for(const row of projections.filter(r=>String(r.value.sourceId)===itemId))await this.repo.remove('public',row.id);
     await this.repo.remove('items',itemId);
-  }
-  public async notify(itemId: string,requestId: string): Promise<void> {
-    this.staff(); const data=await this.load(); const item=data.items.find(i=>i.id===itemId); const r=data.requests.find(q=>q.id===requestId);
-    if(!item || !r || !r.email || item.status!=='保管中' || r.status!=='ACTIVE' || !item.valuable) throw new Error('保管中の非公開品と、有効な紛失申告を選択してください。');
-    if(data.claims.some(claim=>claim.requestId===requestId && claim.owner===r.owner && (claim.status==='PENDING'||claim.status==='RETURNED'))) throw new Error('受け取り予定・受け取り済みの登録には追加案内できません。');
-    for(const closed of (await this.repo.list('claims')).filter(row=>row.author===r.owner && row.value.itemId===itemId && row.value.status==='UNAVAILABLE')) {
-      await this.repo.put('claims',{...closed.value,status:'CANCELLED'},closed.id,closed.etag);
-    }
-    await this.notice({owner:r.owner,email:r.email,itemId,requestId,claimId:'',title:'窓口からのお知らせ',window:item.window,kind:'VALUABLE',message:'登録した紛失申告に該当する可能性のある拾得物を保管しています。品物の詳細は公開していません。受取窓口で本人確認を受けてください。',createdAt:now()});
   }
   private async notice(value: Omit<Notice,'id'>, cache?: {notices:Row[];mail:Row[]}): Promise<void> {
     const key=[value.kind,value.itemId,value.owner,value.requestId,value.claimId].join(':');
@@ -217,24 +203,7 @@ export class WorkflowService implements AdminAppService {
         for(const other of claims.filter(row=>row.value.itemId===item.id && row.id!==item.claimId && row.value.status==='PENDING')) {
           await this.repo.put('claims',{...other.value,status:'UNAVAILABLE'},other.id,other.etag);
         }
-        await this.finderThanks(item.id);
       }
     }
-  }
-  private async finderThanks(itemId:string):Promise<void> {
-    const item=(await this.repo.list('items')).find(row=>row.id===itemId);
-    if(!item || item.value.status!=='返却済み')return;
-    let email:string;
-    if(item.value.studentSubmissionKey){
-      const submission=(await this.repo.list('submissions')).find(row=>row.id===item.value.studentSubmissionKey);
-      // A missing/invalid original submission never falls back to FinderEmail.
-      if(!submission?.author || submission.value.receiveReturnEmail!==true)return;
-      email=String(submission.value.email || '');
-    }else email=String(item.value.finderEmail || '');
-    if(!email.trim())return;
-    try{email=validateSchoolEmail(email,this.domains);}catch{return;}
-    const key=`FINDER_RETURN:${item.id}:${item.value.studentSubmissionKey || ''}`;
-    if((await this.repo.list('mail')).some(row=>row.value.key===key))return;
-    await this.repo.put('mail',{key,email,subject:'届けてくださってありがとうございました',body:'届けてくださった落とし物は、持ち主に返却できました。ご協力ありがとうございました。',status:'PENDING',error:''});
   }
 }

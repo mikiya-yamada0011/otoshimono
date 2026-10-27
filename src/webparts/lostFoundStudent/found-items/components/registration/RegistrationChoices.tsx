@@ -1,12 +1,13 @@
 import * as React from 'react';
 import { COLORS } from '../../types/model';
-import { CATEGORY_GROUPS } from '../../utils/categories';
+import { registrationCategoryGroups } from '../../utils/categories';
 import { CAMPUSES, getCampus, getBuilding } from '../../utils/locations';
 
-export function RegistrationCategories({value,onChange}:{value:{parent:string;category:string};onChange:(value:{parent:string;category:string})=>void}):React.ReactElement {
-  const group=CATEGORY_GROUPS.find(candidate=>candidate.code===value.parent);
+export function RegistrationCategories({value,onChange,existingCategory='',includeGeneral=false}:{value:{parent:string;category:string};onChange:(value:{parent:string;category:string})=>void;existingCategory?:string;includeGeneral?:boolean}):React.ReactElement {
+  const groups=registrationCategoryGroups(existingCategory,includeGeneral);
+  const group=groups.find(candidate=>candidate.code===value.parent);
   return <div className="lf-registration-categories">
-    <fieldset><legend>親カテゴリ（必須）</legend><div className="lf-category-choices">{CATEGORY_GROUPS.map(category=><label key={category.code} title={category.name}><input type="radio" name="registration-parent" required checked={value.parent===category.code} onChange={()=>onChange({parent:category.code,category:''})}/><span>{category.name}</span></label>)}</div></fieldset>
+    <fieldset><legend>親カテゴリ（必須）</legend><div className="lf-category-choices">{groups.map(category=><label key={category.code} title={category.name}><input type="radio" name="registration-parent" required checked={value.parent===category.code} onChange={()=>onChange({parent:category.code,category:''})}/><span>{category.name}</span></label>)}</div></fieldset>
     <fieldset><legend>細かい種類（必須）</legend>{group?<div className="lf-category-choices">{group.children.map(category=><label key={category.code} title={category.name}><input type="radio" name="registration-child" required checked={value.category===category.code} onChange={()=>onChange({...value,category:category.code})}/><span>{category.name}</span></label>)}</div>:<p className="lf-muted">先に親カテゴリを選択してください。</p>}</fieldset>
   </div>;
 }

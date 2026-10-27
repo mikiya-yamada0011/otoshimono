@@ -2,7 +2,11 @@ import { chromium } from '@playwright/test';
 import { readFile,writeFile } from 'node:fs/promises';
 
 const config=JSON.parse(await readFile(process.argv[2] || 'deployment/site.example.json','utf8'));
-const schema=JSON.parse(await readFile(new URL('./list-schema.json',import.meta.url),'utf8'));
+const allSchema=JSON.parse(await readFile(new URL('./list-schema.json',import.meta.url),'utf8'));
+const selectedLists=process.argv.find(arg=>arg.startsWith('--lists='))?.slice('--lists='.length).split(',');
+if(selectedLists?.some(title=>!allSchema[title]))throw new Error('--lists に未定義のリスト名があります。');
+const schema=selectedLists?Object.fromEntries(selectedLists.map(title=>[title,allSchema[title]])):allSchema;
+const includeFoundItems=!selectedLists;
 const apply=process.argv.includes('--apply');
 const schemaOnly=process.argv.includes('--schema-only');
 const removeLegacyContent=process.argv.includes('--remove-legacy-content');
@@ -12,7 +16,7 @@ const browser=await chromium.connectOverCDP(process.env.CDP_URL || 'http://127.0
 try {
   const page=browser.contexts().flatMap(context=>context.pages()).find(candidate=>candidate.url().startsWith(config.siteUrl));
   if(!page) throw new Error('検証サイトで手動ログインを完了してください。');
-  const result=await page.evaluate(async({config,schema,apply,schemaOnly,removeLegacyContent})=>{
+  const result=await page.evaluate(async({config,schema,apply,schemaOnly,removeLegacyContent,includeFoundItems})=>{
     let digest='';
     const report={mode:apply?'apply':'preview',siteUrl:config.siteUrl,listIds:{},lists:[],changes:[],migrations:[],currentUser:0};
     const apiRoot=`${config.siteUrl}/_api/`;
@@ -221,7 +225,7 @@ try {
         studentRole=role.Id;
       }
       if(kind!=='private')for(const id of config.studentPrincipalIds.map(Number))await request(path+`/roleassignments/addroleassignment(principalid=${id},roledefid=${studentRole})`,{});
-      await request(path,{ReadSecurity:['own','submit'].includes(kind)?2:1,WriteSecurity:['own','submit'].includes(kind)?2:1,EnableAttachments:false,EnableVersioning:true},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
+      await request(path,{ReadSecurity:['own','submit'].includes(kind)?2:1,WriteSecurity:['own','submit'].includes(kind)?2:1},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
     };
 
     report.currentUser=(await request('web/currentuser?$select=Id')).Id;
@@ -256,22 +260,27 @@ try {
     for(const [title,spec] of available){
       for(const field of spec.fields)await ensureField(title,field);
       await ensureDefaultView(title,spec.viewFields);
+      const settings=await request(list(title)+'?$select=EnableAttachments,EnableVersioning');
+      if(settings.EnableAttachments!==(spec.attachments===true)||!settings.EnableVersioning){
+        report.changes.push(`${title} の添付保存を${spec.attachments===true?'有効':'無効'}化・版管理を有効化`);
+        if(apply)await request(list(title),{EnableAttachments:spec.attachments===true,EnableVersioning:true},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
+      }
     }
     await applyMigrations(migrationPlans);
     for(const [title,spec] of available){
       await ensureTitleUniqueness(title,Boolean(spec.uniqueTitle));
+      if(spec.validationFormula&&apply)await request(list(title),{ValidationFormula:spec.validationFormula,ValidationMessage:spec.validationMessage},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
       await acl(title,spec.access);
     }
 
-    for(const [name,type] of [['FinderEmail','Text'],['ClaimId','Text'],['RequestId','Text'],['InternalNote','Note'],['ReturnAudit','Note']])await ensureField(config.foundItemsList,{name,type});
-    await ensureField(config.foundItemsList,{name:'StudentSubmissionKey',type:'Text',indexed:true});
-    await ensureField(config.foundItemsList,{name:'FinderThanksQueued',type:'Boolean',indexed:true});
-    if(apply)await request(list(config.foundItemsList)+"/fields/getbyinternalnameortitle('StudentSubmissionKey')",{Indexed:true,EnforceUniqueValues:true},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
+    if(includeFoundItems){
+    for(const [name,type] of [['ClaimId','Text'],['RequestId','Text'],['InternalNote','Note'],['ReturnAudit','Note']])await ensureField(config.foundItemsList,{name,type});
     const status=await request(list(config.foundItemsList)+"/fields/getbyinternalnameortitle('Status')?$select=TypeAsString,Choices");
     if(apply&&status.TypeAsString==='Choice')await request(list(config.foundItemsList)+"/fields/getbyinternalnameortitle('Status')",{Choices:[...new Set([...(status.Choices||[]).filter(choice=>choice!=='処分済み'),'保管中','返却済み','移管済み'])]},{'X-HTTP-Method':'MERGE','IF-MATCH':'*'});
     await acl(config.foundItemsList,'private');
+    }
     return report;
-  },{config,schema,apply,schemaOnly,removeLegacyContent});
+  },{config,schema,apply,schemaOnly,removeLegacyContent,includeFoundItems});
   await writeFile('deployment/last-provision-report.json',JSON.stringify(result,null,2));
   console.log(JSON.stringify(result,null,2));
 }finally{

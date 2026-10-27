@@ -7,12 +7,12 @@ export type ItemStatus = '保管中' | '返却済み' | '移管済み';
 export interface User { id: string; name: string; email: string; role: Role; }
 export interface Profile { id: string; email: string; window: string; }
 export interface Criteria { parent: string; category: string; colors: string[]; campuses: string[]; building: string; dateFrom: string; dateTo: string; query: string; }
-export interface Item { id: string; parent: string; category: string; title: string; colors: string[]; campus: string; building: string; place: string; foundOn: string; window: string; feature: string; valuable: boolean; status: ItemStatus; createdAt: string; finderEmail?: string; studentSubmissionKey?: string; internalNote?: string; recipientEmail?: string; returnedAt?: string; returnedBy?: string; claimId?: string; requestId?: string; audit?: {at:string;by:string;reason:string;recipient:string;returnedAt:string;requestId?:string}[]; etag?: string; }
+export interface Item { transferredAt?: string; transferDestination?: string; id: string; parent: string; category: string; title: string; colors: string[]; campus: string; building: string; place: string; foundOn: string; window: string; feature: string; valuable: boolean; status: ItemStatus; createdAt: string; finderEmail?: string; studentSubmissionKey?: string; internalNote?: string; recipientEmail?: string; returnedAt?: string; returnedBy?: string; claimId?: string; requestId?: string; audit?: {at:string;by:string;reason:string;recipient:string;returnedAt:string;requestId?:string}[]; etag?: string; }
 export interface Request { id: string; owner: string; email: string; key?: string; criteria: Criteria; feature: string; valuable: boolean; status: 'ACTIVE'|'CANCELLED'|'RESOLVED'; createdAt: string; }
 export interface Claim { id: string; owner: string; email: string; itemId: string; requestId: string; feature: string; title: string; window: string; status: 'PENDING'|'CANCELLED'|'RETURNED'|'UNAVAILABLE'; createdAt: string; returnedAt: string; }
 export interface Notice { id: string; owner: string; email: string; itemId: string; requestId: string; claimId: string; title: string; window: string; message: string; kind: 'MATCH'|'VALUABLE'; createdAt: string; unavailable?: boolean; }
-export interface FoundSubmissionInput { parent: string; category: string; colors: string[]; campus: string; building: string; place: string; foundOn: string; feature: string; receiveReturnEmail: boolean; }
-export interface FoundSubmission extends FoundSubmissionInput { id: string; email: string; title: string; status: 'PENDING'|'PROCESSING'|'ACCEPTED'|'REJECTED'; reason: string; window: string; itemId: string; createdAt: string; itemStatus: ItemStatus | ''; returnedAt: string; }
+export interface DailyPhoto { name: string; url: string; }
+export interface DailyPhotoBatch { id: string; window: string; receivedOn: string; photos: DailyPhoto[]; }
 export interface Mail { id: string; email: string; subject: string; body: string; status: 'PENDING'|'PROCESSING'|'SENT'|'ERROR'; error?: string; }
 export interface Snapshot { warnings?: string[]; user: User; profile?: Profile; items: Item[]; requests: Request[]; claims: Claim[]; notices: Notice[]; mail: Mail[]; }
 export interface ItemInput extends Omit<Item, 'id'|'status'|'createdAt'|'etag'|'studentSubmissionKey'> {}
@@ -52,16 +52,15 @@ export function studentIdFromEmail(email: string): string {
   return email.trim().toLowerCase().split('@')[0] || '学籍番号不明';
 }
 export function publicItem(item: Item): Item {
-  return {id:item.id,parent:item.parent,category:item.category,title:item.title,colors:item.colors,campus:item.campus,building:item.building,place:item.place,foundOn:item.foundOn,window:item.window,feature:item.feature,valuable:item.valuable,status:item.status,createdAt:item.createdAt};
+  return {id:item.id,parent:item.parent,category:item.category,title:item.title,colors:item.colors,campus:item.campus,building:item.building,place:item.place,foundOn:item.foundOn,window:item.window,feature:item.feature,valuable:item.valuable,status:item.status,createdAt:item.createdAt,transferredAt:item.transferredAt,transferDestination:item.transferDestination};
 }
 export interface AppService {
   readonly domains: string[];
   load(): Promise<Snapshot>;
-  loadFoundSubmissions(): Promise<FoundSubmission[]>;
+  loadDailyPhotoBatches(): Promise<DailyPhotoBatch[]>;
   saveProfile(profile: Omit<Profile,'id'>): Promise<void>;
   saveRequest(criteria: Criteria, feature: string, id?: string): Promise<void>;
   cancelRequest(id: string): Promise<void>;
   createClaim(itemId: string, feature: string, requestId?: string): Promise<void>;
   cancelClaim(id: string): Promise<void>;
-  submitFoundItem(input: FoundSubmissionInput): Promise<void>;
 }

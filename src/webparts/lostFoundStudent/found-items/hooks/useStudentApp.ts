@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { AppService, Criteria, Snapshot, emptyCriteria } from '../types/model';
 import { ModalState, Page, Run } from '../types/navigation';
+import { RefreshCoordinator } from '../utils/refreshCoordinator';
 
 export interface StudentAppState {
   data?: Snapshot;
@@ -38,30 +39,28 @@ export function useStudentApp(service: AppService): StudentAppState {
   const lock = React.useRef(false);
   const heading = React.useRef<HTMLElement>(null);
 
-  const reload = React.useCallback(async (): Promise<void> => {
-    setData(await service.load());
-  }, [service]);
+  const loader = React.useMemo(() => new RefreshCoordinator(() => service.load(), setData), [service]);
+  const reload = React.useCallback(() => loader.refresh(), [loader]);
 
   React.useEffect(() => {
     let active = true;
-    service.load()
-      .then(snapshot => {
+    reload()
+      .then(() => {
         if (!active) return;
-        setData(snapshot);
         setPage(new URLSearchParams(window.location.search).has('lfNotice') ? 'notices' : 'search');
       })
       .catch(cause => {
         if (active) setError(String(cause.message || cause));
       });
-    return () => { active = false; };
-  }, [service]);
+    return () => { active = false; loader.invalidate(); };
+  }, [loader, reload]);
 
   React.useEffect(() => {
     let active = true;
     const refresh = (): void => {
       if (document.visibilityState !== 'visible' || lock.current) return;
-      service.load()
-        .then(snapshot => { if (active) setData(snapshot); })
+      if (!active) return;
+      reload()
         .catch(() => { /* Explicit refresh reports connection errors. */ });
     };
     window.addEventListener('focus', refresh);
@@ -75,11 +74,12 @@ export function useStudentApp(service: AppService): StudentAppState {
       window.removeEventListener('storage', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, [service]);
+  }, [reload]);
 
   const run: Run = (work, success, after) => {
     if (lock.current) return;
     lock.current = true;
+    loader.invalidate();
     setBusy(true);
     setError('');
     setMessage('');

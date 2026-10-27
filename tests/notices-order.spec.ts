@@ -13,10 +13,10 @@ for (const width of [390, 1200]) {
         const db = JSON.parse(localStorage.getItem(key)!);
         db.requests = [['81','P01','P01_WALLET'],['82','P05','P05_UMBRELLA_LONG'],['83','P07','P07_BOTTLE'],['84','P06','P06_PENCIL_CASE']].map(([id,parent,category]) => ({id,author:'student-1',etag:'1',value:{criteria:{parent,category,colors:[],campuses:[],building:'',dateFrom:'',dateTo:'',query:''},feature:'',status:'ACTIVE',createdAt:'2026-09-01T00:00:00Z'}}));
         const notices = [
-          { id: '10', requestId: '81', createdAt: '2026-09-27T01:00:00.000Z', title: '最新の窓口案内', kind: 'VALUABLE' },
+          { id: '10', requestId: '81', createdAt: '2026-09-27T01:00:00.000Z', title: '最新の候補通知', kind: 'MATCH' },
           { id: '9', requestId: '82', createdAt: '2026-09-27T01:00:00.000Z', title: '同時刻の候補通知', kind: 'MATCH' },
           { id: '2', requestId: '83', createdAt: '2026-09-26T01:00:00.000Z', title: '昨日の候補通知', kind: 'MATCH' },
-          { id: '100', requestId: '84', createdAt: '2026-09-25T01:00:00.000Z', title: '最も古い窓口案内', kind: 'VALUABLE' }
+          { id: '100', requestId: '84', createdAt: '2026-09-25T01:00:00.000Z', title: '最も古い候補通知', kind: 'MATCH' }
         ];
         db.notices = order.map(id => {
           const notice = notices.find(notice => notice.id === id)!;

@@ -27,7 +27,7 @@
   .lf-finder-domain {display:flex;align-items:center;justify-content:flex-start;flex:0 0 180px;width:180px;height:32px;font-size:12px;font-weight:400;white-space:nowrap;pointer-events:none;}
   .lf-item-form .lf-field>textarea {height:64px;min-height:64px;padding:2px 12px;font-size:12px;font-weight:400;}
   .lf-inventory-list,.lf-receipt-list {overflow-x:auto;}
-  .lf-inventory-columns {display:grid;grid-template-columns:8fr 32fr 12fr 12fr 14fr 10fr 12fr;gap:8px;align-items:center;}
+  .lf-inventory-columns {display:grid;grid-template-columns:8fr 40fr 16fr 14fr 10fr 12fr;gap:8px;align-items:center;}
   .lf-receipt-columns {display:grid;grid-template-columns:8fr 30fr 42fr 20fr;gap:12px;align-items:center;}
   .lf-history-list {overflow-x:auto;}
   .lf-history-columns {display:grid;grid-template-columns:8fr 40fr 14fr 16fr 22fr;gap:8px;align-items:center;}

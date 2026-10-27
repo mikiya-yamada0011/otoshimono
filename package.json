@@ -9,7 +9,7 @@
     "styles:build": "tailwindcss -i src/webparts/lostFoundStudent/styles/tailwind.css -o src/webparts/lostFoundStudent/styles/tailwind.generated.global.scss --minify",
     "styles:watch": "tailwindcss -i src/webparts/lostFoundStudent/styles/tailwind.css -o src/webparts/lostFoundStudent/styles/tailwind.generated.global.scss --watch",
     "prebuild": "npm run styles:build",
-    "build": "heft test --clean --production && heft package-solution --production",
+    "build": "node scripts/build-production.mjs",
     "clean": "heft clean",
     "eject-webpack": "heft eject-webpack",
     "prestart": "npm run styles:build",
@@ -18,7 +18,10 @@
     "pretest:harness": "npm run styles:build",
     "test:harness": "node scripts/test-harness.mjs",
     "test:workflow": "node scripts/test-workflow.mjs",
-    "test:e2e": "playwright test"
+    "test:unit": "node scripts/test-workflow.mjs && node scripts/test-photo-repository.mjs && node scripts/test-refresh-coordinator.mjs && node scripts/test-photo-retention.mjs",
+    "test:e2e": "playwright test",
+    "test:photo-cleanup": "node scripts/test-photo-cleanup-flow.mjs",
+    "test:transfers": "node scripts/test-transferred-projection.mjs && node scripts/test-transferred-workflow.mjs"
   },
   "dependencies": {
     "@fluentui/react": "^8.106.4",

@@ -1,3 +1,8 @@
+import registrationPolicy from '../data/registration-policy.json';
+
+export const REGISTRATION_POLICY = registrationPolicy;
+export const isIndividualCategory = (code: string): boolean => registrationPolicy.individualCategories.includes(code);
+
 /** 落とし物検索で共通利用するカテゴリ定義と純粋な検索ロジック。 */
 export type ChildCategory = {
   code: string;
@@ -94,7 +99,6 @@ const DEFINITIONS: readonly GroupDefinition[] = [
   ]],
   ["P09", "スポーツ・趣味・移動用品", [
     ["P09_SPORTS", "スポーツ用品"],
-    ["P09_MUSIC", "楽器・音楽用品"],
     ["P09_HOBBY", "玩具・ぬいぐるみ・趣味用品"],
     ["P09_BICYCLE", "自転車・移動関連用品"],
     ["P09_OTHER", "その他のスポーツ・趣味・移動用品"],
@@ -144,6 +148,14 @@ const childByCode = new Map(
     group.children.map((child) => [child.code, child] as const),
   ),
 );
+
+/** 選択肢だけを絞る。既存の記録・履歴のカテゴリ辞書は変更しない。 */
+export function registrationCategoryGroups(existingCode = '', includeGeneral = false): CategoryGroup[] {
+  return CATEGORY_GROUPS.map(group => ({...group, children: group.children.filter(child =>
+    !registrationPolicy.photoOnlyCategories.includes(child.code) && (child.code === existingCode || (includeGeneral
+      ? !registrationPolicy.outsideOfficeCategories.includes(child.code)
+      : isIndividualCategory(child.code))))})).filter(group => group.children.length > 0);
+}
 
 const groupByCode = new Map(CATEGORY_GROUPS.map((group) => [group.code, group]));
 

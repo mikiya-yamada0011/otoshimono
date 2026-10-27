@@ -79,13 +79,13 @@
             },
             "PersonalThanksRetired": {
               "type": "If",
-              "expression": "@and(equals(body('CurrentMail')?['MailStatus'],'PENDING'),startsWith(coalesce(body('CurrentMail')?['NotificationKey'],body('CurrentMail')?['Title'],''),'FINDER_THANKS:'))",
+              "expression": "@and(equals(body('CurrentMail')?['MailStatus'],'PENDING'),or(startsWith(coalesce(body('CurrentMail')?['NotificationKey'],body('CurrentMail')?['Title'],''),'FINDER_'),startsWith(coalesce(body('CurrentMail')?['NotificationKey'],body('CurrentMail')?['Title'],''),'VALUABLE:')))",
               "actions": {
                 "RetirePersonalThanks_Body": {
                   "type": "Compose",
                   "inputs": {
                     "MailStatus": "ERROR",
-                    "ErrorMessage": "自由記述のお礼機能は終了しました。このメールは送信しません。"
+                    "ErrorMessage": "廃止した機能の通知は送信しません。"
                   },
                   "runAfter": {}
                 },
@@ -162,7 +162,7 @@
                       },
                       "OutgoingSubject": {
                         "type": "Compose",
-                        "inputs": "@if(startsWith(coalesce(body('CurrentMail')?['NotificationKey'],body('CurrentMail')?['Title'],''),'FINDER_RETURN:'),'届けてくださってありがとうございました',body('CurrentMail')?['MailSubject'])",
+                        "inputs": "@body('CurrentMail')?['MailSubject']",
                         "runAfter": {
                           "Acquire": [
                             "Succeeded"
@@ -171,7 +171,7 @@
                       },
                       "OutgoingBody": {
                         "type": "Compose",
-                        "inputs": "@if(startsWith(coalesce(body('CurrentMail')?['NotificationKey'],body('CurrentMail')?['Title'],''),'FINDER_RETURN:'),'届けてくださった落とし物は、持ち主に返却できました。ご協力ありがとうございました。',body('CurrentMail')?['MailBody'])",
+                        "inputs": "@body('CurrentMail')?['MailBody']",
                         "runAfter": {
                           "OutgoingSubject": [
                             "Succeeded"

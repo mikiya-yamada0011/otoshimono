@@ -14,7 +14,7 @@ for (const width of [320, 390, 1200]) {
       const database = JSON.parse(localStorage.getItem(key)!);
       const base = database.public[0];
       database.public = [['C01', '白'], ['C02', '白'], ['C03', '白'], ['C01', '青']].map(([campus, color], index) => ({
-        ...base, id: String(100 + index), value: { ...base.value, sourceId: String(100 + index), campus, colors: [color] }
+        ...base, id: String(100 + index), value: { ...base.value, sourceId: String(100 + index), parent: 'P02', category: 'P02_SMARTPHONE', title: 'スマートフォン・携帯電話', campus, colors: [color] }
       }));
       localStorage.setItem(key, JSON.stringify(database));
     });
@@ -24,7 +24,7 @@ for (const width of [320, 390, 1200]) {
     let campuses = dialog.getByRole('group', { name: 'キャンパス', exact: true });
     const all = campuses.getByRole('checkbox', { name: 'すべて', exact: true });
     await expect(all).toBeChecked();
-    await dialog.getByRole('radio', { name: '傘・雨具', exact: true }).check();
+    await dialog.getByRole('radio', { name: 'スマホ・電子機器', exact: true }).check();
     await dialog.getByRole('checkbox', { name: '白', exact: true }).check();
     await campuses.getByRole('checkbox', { name: first.name, exact: true }).check();
     await campuses.getByRole('checkbox', { name: second.name, exact: true }).check();

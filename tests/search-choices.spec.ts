@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { CATEGORY_GROUPS } from '../src/webparts/lostFoundStudent/found-items/utils/categories';
+import { registrationCategoryGroups } from '../src/webparts/lostFoundStudent/found-items/utils/categories';
 import { CAMPUSES } from '../src/webparts/lostFoundStudent/found-items/utils/locations';
 import { COLORS, today } from '../src/webparts/lostFoundStudent/found-items/types/model';
 
@@ -22,7 +22,7 @@ for (const width of [320, 390, 520, 521, 1200]) {
     const campuses = dialog.getByRole('group', { name: 'キャンパス', exact: true });
     const colors = dialog.locator('.lf-criteria-colors');
     await expect(dialog.getByRole('combobox')).toHaveCount(0);
-    await expect(parents.getByRole('radio')).toHaveCount(CATEGORY_GROUPS.length + 1);
+    await expect(parents.getByRole('radio')).toHaveCount(registrationCategoryGroups().length + 1);
     await expect(campuses.getByRole('checkbox')).toHaveCount(CAMPUSES.length + 1);
     await expect(colors.getByRole('checkbox')).toHaveCount(COLORS.length);
     await expect(parents.getByRole('radio', { name: 'すべて', exact: true })).toBeChecked();
@@ -30,15 +30,15 @@ for (const width of [320, 390, 520, 521, 1200]) {
     await expect(dialog.getByRole('group', { name: '細かい種類', exact: true })).toHaveCount(0);
     await expect(dialog.locator('.lf-conditions input[required]')).toHaveCount(0);
 
-    const umbrella = parents.getByRole('radio', { name: '傘・雨具', exact: true });
-    await umbrella.check();
+    const electronics = parents.getByRole('radio', { name: 'スマホ・電子機器', exact: true });
+    await electronics.check();
     const children = dialog.getByRole('group', { name: '細かい種類', exact: true });
     await expect(children.getByRole('radio', { name: 'すべて', exact: true })).toBeChecked();
-    await children.getByRole('radio', { name: '長傘', exact: true }).check();
-    await expect(umbrella.locator('+ span')).toHaveCSS('background-color', 'rgb(35, 104, 85)');
+    await children.getByRole('radio', { name: 'ワイヤレスイヤホン', exact: true }).check();
+    await expect(electronics.locator('+ span')).toHaveCSS('background-color', 'rgb(35, 104, 85)');
     await expect(children.getByRole('radio', { checked: true })).toHaveCount(1);
     await parents.getByRole('radio', { name: '財布・現金', exact: true }).check();
-    await expect(children.getByRole('radio', { name: '長傘', exact: true })).toHaveCount(0);
+    await expect(children.getByRole('radio', { name: 'ワイヤレスイヤホン', exact: true })).toHaveCount(0);
     await expect(children.getByRole('radio', { name: 'すべて', exact: true })).toBeChecked();
     await expect(parents.getByRole('radio', { checked: true })).toHaveCount(1);
 
@@ -95,7 +95,7 @@ for (const width of [320, 390, 520, 521, 1200]) {
       }) };
     });
     expect(new Set(layout.chips.map(chip => Math.round(chip.width))).size).toBeGreaterThan(3);
-    expect(new Set(layout.chips.map(chip => Math.round(chip.y))).size).toBeGreaterThan(1);
+    if (layout.chips.reduce((sum, chip) => sum + chip.width, 0) + 6 * (layout.chips.length - 1) > layout.bounds.right - layout.bounds.x + 1) expect(new Set(layout.chips.map(chip => Math.round(chip.y))).size).toBeGreaterThan(1);
     layout.chips.forEach((chip, index) => {
       expect(chip.x).toBeGreaterThanOrEqual(layout.bounds.x - 1);
       expect(chip.right).toBeLessThanOrEqual(layout.bounds.right + 1);
@@ -123,8 +123,8 @@ test('ボタン検索の下書き・確定・再表示・クリアと空条件�
   const parents = dialog.getByRole('group', { name: '種類', exact: true });
   const children = dialog.getByRole('group', { name: '細かい種類', exact: true });
   const campuses = dialog.getByRole('group', { name: 'キャンパス', exact: true });
-  await parents.getByRole('radio', { name: '傘・雨具', exact: true }).check();
-  await children.getByRole('radio', { name: '長傘', exact: true }).check();
+  await parents.getByRole('radio', { name: 'スマホ・電子機器', exact: true }).check();
+  await children.getByRole('radio', { name: 'ワイヤレスイヤホン', exact: true }).check();
   await dialog.getByRole('checkbox', { name: '白', exact: true }).check();
   await dialog.getByRole('button', { name: '閉じる', exact: true }).click();
   await expect(page.locator('.lf-item-card')).toHaveCount(count);
@@ -134,8 +134,8 @@ test('ボタン検索の下書き・確定・再表示・クリアと空条件�
   await expect(parents.getByRole('radio', { name: 'すべて', exact: true })).toBeChecked();
   await expect(children).toHaveCount(0);
   await expect(dialog.locator('.lf-criteria-colors').getByRole('checkbox', { checked: true })).toHaveCount(0);
-  await parents.getByRole('radio', { name: '傘・雨具', exact: true }).check();
-  await children.getByRole('radio', { name: '長傘', exact: true }).check();
+  await parents.getByRole('radio', { name: 'スマホ・電子機器', exact: true }).check();
+  await children.getByRole('radio', { name: 'ワイヤレスイヤホン', exact: true }).check();
   await dialog.getByRole('checkbox', { name: '白', exact: true }).check();
   await dialog.getByRole('checkbox', { name: '黒', exact: true }).check();
   await campuses.getByRole('checkbox', { name: CAMPUSES.find(campus => campus.code === 'C02')!.name, exact: true }).check();
@@ -144,9 +144,9 @@ test('ボタン検索の下書き・確定・再表示・クリアと空条件�
   await dialog.getByRole('button', { name: 'この条件で探す', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('.lf-item-card')).toHaveCount(1);
-  await expect(page.locator('.lf-search-summary')).toContainText('長傘');
+  await expect(page.locator('.lf-search-summary')).toContainText('ワイヤレスイヤホン');
   await page.getByRole('button', { name: '絞り込み', exact: true }).click();
-  await expect(children.getByRole('radio', { name: '長傘', exact: true })).toBeChecked();
+  await expect(children.getByRole('radio', { name: 'ワイヤレスイヤホン', exact: true })).toBeChecked();
   await expect(dialog.locator('.lf-criteria-colors').getByRole('checkbox', { checked: true })).toHaveCount(2);
   await expect(dialog.getByLabel('日付（開始）')).toHaveValue(today());
   await dialog.getByRole('button', { name: '条件をクリア', exact: true }).click();
@@ -156,7 +156,7 @@ test('ボタン検索の下書き・確定・再表示・クリアと空条件�
   await expect(dialog.locator('.lf-criteria-colors').getByRole('checkbox', { checked: true })).toHaveCount(0);
   await expect(dialog.getByLabel('日付（開始）')).toHaveValue('');
   await expect(dialog.getByLabel('日付（終了）')).toHaveValue('');
-  await expect(page.locator('.lf-search-summary')).toContainText('長傘');
+  await expect(page.locator('.lf-search-summary')).toContainText('ワイヤレスイヤホン');
   await dialog.getByRole('button', { name: 'この条件で探す', exact: true }).click();
   await expect(page.locator('.lf-item-card')).toHaveCount(count);
   await expect(page.locator('.lf-search-summary')).toHaveCount(0);
@@ -185,7 +185,9 @@ test('検索から紛失申告へボタン選択を引き継ぎ、申告だけ�
   await expect(dialog).toHaveCount(0);
   const request = await page.evaluate(() => JSON.parse(localStorage.getItem('lost-found-no-qr-test-harness-v1')!).requests[0].value);
   expect(request.criteria).toMatchObject({ parent: 'P01', category: 'P01_WALLET', colors: ['白'], campuses: [], dateFrom: '', dateTo: '' });
-  await page.getByRole('button', { name: '紛失した物を登録', exact: true }).click();
+  await page.getByRole('navigation', { name: '学生メニュー' }).getByRole('button', { name: '探す', exact: true }).click();
+  await page.getByRole('button', { name: '絞り込み', exact: true }).click();
+  await page.getByRole('button', { name: '条件をクリア', exact: true }).click();
   const nextSearch = page.getByRole('dialog', { name: '検索条件' });
   await expect(nextSearch).toBeVisible();
   await expect(nextSearch.getByRole('group', { name: '種類', exact: true }).getByRole('radio', { name: 'すべて', exact: true })).toBeChecked();

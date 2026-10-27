@@ -91,7 +91,7 @@
         },
         "SyncPublicProjection": {
           "type": "If",
-          "expression": "@and(equals(body('Item')?['Status'],'保管中'),equals(body('Item')?['IsPublic'],true),not(empty(body('Item')?['ParentCategoryCode'])))",
+          "expression": "@and(or(equals(body('Item')?['Status'],'保管中'),equals(body('Item')?['Status'],'移管済み')),equals(body('Item')?['IsPublic'],true),not(empty(body('Item')?['ParentCategoryCode'])))",
           "actions": {
             "ProjectionExists": {
               "type": "If",
@@ -112,7 +112,9 @@
                     "FoundOn": "@body('Item')?['FoundOn']",
                     "StorageWindow": "@coalesce(body('Item')?['StorageWindow'],'')",
                     "Feature": "@coalesce(body('Item')?['Feature'],'')",
-                    "ItemStatus": "保管中",
+                    "ItemStatus": "@body('Item')?['Status']",
+                    "TransferredAt": "@if(and(equals(body('Item')?['Status'],'移管済み'),contains(coalesce(body('Item')?['InternalNote'],''),'[移管 '),contains(last(split(coalesce(body('Item')?['InternalNote'],''),'[移管 ')),'] 移管先：'),contains(last(split(coalesce(body('Item')?['InternalNote'],''),'[移管 ')),'／担当：')),first(skip(split(first(split(last(split(coalesce(body('Item')?['InternalNote'],''),'[移管 ')),']')),' '),1)),'')",
+                    "TransferDestination": "@if(and(equals(body('Item')?['Status'],'移管済み'),contains(coalesce(body('Item')?['InternalNote'],''),'[移管 '),contains(last(split(coalesce(body('Item')?['InternalNote'],''),'[移管 ')),'] 移管先：'),contains(last(split(coalesce(body('Item')?['InternalNote'],''),'[移管 ')),'／担当：')),trim(first(split(last(split(last(split(coalesce(body('Item')?['InternalNote'],''),'[移管 ')),'] 移管先：')),'／担当：'))),'')",
                     "SourceCreatedAt": "@body('Item')?['Created']"
                   },
                   "runAfter": {}
@@ -163,7 +165,9 @@
                       "FoundOn": "@body('Item')?['FoundOn']",
                       "StorageWindow": "@coalesce(body('Item')?['StorageWindow'],'')",
                       "Feature": "@coalesce(body('Item')?['Feature'],'')",
-                      "ItemStatus": "保管中",
+                      "ItemStatus": "@body('Item')?['Status']",
+                      "TransferredAt": "@if(and(equals(body('Item')?['Status'],'移管済み'),contains(coalesce(body('Item')?['InternalNote'],''),'[移管 '),contains(last(split(coalesce(body('Item')?['InternalNote'],''),'[移管 ')),'] 移管先：'),contains(last(split(coalesce(body('Item')?['InternalNote'],''),'[移管 ')),'／担当：')),first(skip(split(first(split(last(split(coalesce(body('Item')?['InternalNote'],''),'[移管 ')),']')),' '),1)),'')",
+                      "TransferDestination": "@if(and(equals(body('Item')?['Status'],'移管済み'),contains(coalesce(body('Item')?['InternalNote'],''),'[移管 '),contains(last(split(coalesce(body('Item')?['InternalNote'],''),'[移管 ')),'] 移管先：'),contains(last(split(coalesce(body('Item')?['InternalNote'],''),'[移管 ')),'／担当：')),trim(first(split(last(split(last(split(coalesce(body('Item')?['InternalNote'],''),'[移管 ')),'] 移管先：')),'／担当：'))),'')",
                       "SourceCreatedAt": "@body('Item')?['Created']"
                     },
                     "runAfter": {}
